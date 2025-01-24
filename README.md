@@ -1517,3 +1517,160 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
+
+
+
+
+
+
+
+    import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import binned_statistic
+
+###############################################################################
+# Helper functions (placeholders for your own versions)
+###############################################################################
+def compute_ece(y_true, y_prob, num_bins=10):
+    """
+    Compute a simple Expected Calibration Error (ECE) by:
+      1) splitting predictions into 'num_bins' equally sized bins
+      2) computing |mean(pred) - fraction_of_positives| in each bin
+      3) weighting by the fraction of samples in that bin
+    """
+    bin_counts, bin_edges = np.histogram(y_prob, bins=num_bins, range=(0,1))
+    bin_tot = len(y_prob)
+
+    # fraction of positives per bin & mean predicted probability per bin
+    bin_means, _, _ = binned_statistic(y_prob, y_prob, statistic='mean', bins=bin_edges)
+    bin_fracs, _, _ = binned_statistic(
+        y_prob, y_true, statistic='mean', bins=bin_edges
+    )  # fraction_of_positives ~ average of y_true in each bin
+
+    ece_val = 0.0
+    for i in range(num_bins):
+        count_i = bin_counts[i]
+        if count_i > 0:
+            gap = abs(bin_means[i] - bin_fracs[i])
+            ece_val += (count_i / bin_tot) * gap
+
+    return ece_val
+
+def prepare_reliability_data(y_true, y_prob, num_bins=10):
+    """
+    Returns two arrays (bin_x, bin_y) for plotting:
+      bin_x = the average predicted probability in each bin
+      bin_y = the fraction of positives (observed) in that bin
+    Uses 'binned_statistic' to find means in each bin.
+    """
+    # First get bin edges
+    bin_counts, bin_edges = np.histogram(y_prob, bins=num_bins, range=(0,1))
+    bin_means_pred, _, _ = binned_statistic(
+        y_prob, y_prob, statistic='mean', bins=bin_edges
+    )
+    bin_means_true, _, _ = binned_statistic(
+        y_prob, y_true, statistic='mean', bins=bin_edges
+    )
+
+    # bin_x is the mean predicted prob in each bin
+    # bin_y is fraction_of_positives (the mean of y_true in that bin)
+    return bin_means_pred, bin_means_true
+
+###############################################################################
+# Core plotting function (matches the screenshot style)
+###############################################################################
+def plot_reliability_diagram_4i(ax1, ax2, y_true, y_prob,
+                                num_bins=10, title_prefix=""):
+    """
+    Plot a reliability diagram with:
+      - ax1 (top) for fraction_of_positives vs predicted prob (line/points)
+      - ax2 (bottom) for histogram of predicted probabilities (bars)
+    """
+    # 1) Compute ECE
+    ece_value = compute_ece(y_true, y_prob, num_bins=num_bins)
+    
+    # 2) Prepare reliability data
+    bin_x, bin_y = prepare_reliability_data(y_true, y_prob, num_bins=num_bins)
+
+    # 3) Also get histogram data for the bar plot on ax2
+    bin_counts, bin_edges = np.histogram(y_prob, bins=num_bins, range=(0,1))
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    # -- ax1: reliability curve
+    ax1.plot([0,1], [0,1], linestyle='--', color='gray', label='Perfect calibration')
+    ax1.plot(bin_x, bin_y, marker='o', label='Outputs')
+    ax1.set_xlim([0,1])
+    ax1.set_ylim([0,1])
+    ax1.set_xlabel("Predicted Probability")
+    ax1.set_ylabel("Fraction of positives")
+    ax1.set_title(f"{title_prefix}\nECE={ece_value:.3f}, bins={num_bins}")
+    ax1.legend(loc='best')
+
+    # -- ax2: histogram of predicted probabilities
+    # Use width = (bin_edges[1]-bin_edges[0]) so bars touch neatly
+    width = bin_edges[1] - bin_edges[0]
+    ax2.bar(bin_centers, bin_counts, width=width,
+            color='steelblue', edgecolor='black', alpha=0.7)
+    ax2.set_xlim([0,1])
+    ax2.set_xlabel("Predicted Probability")
+    ax2.set_ylabel("Count")
+    ax2.set_ylim([0, max(bin_counts)*1.2])
+    ax2.grid(False)  # optional
+
+###############################################################################
+# Example usage with multiple subplots
+###############################################################################
+if __name__ == "__main__":
+
+    # Fake data for demonstration
+    np.random.seed(0)
+    y_true_label = np.random.randint(0, 2, size=500)
+    p_platt_label = np.random.uniform(0, 1, size=500)
+
+    y_doc_platt = np.random.randint(0, 2, size=500)
+    p_doc_platt = np.random.uniform(0, 1, size=500)
+
+    y_true_iso_label = np.random.randint(0, 2, size=500)
+    p_iso_label = np.random.uniform(0, 1, size=500)
+
+    y_doc_iso = np.random.randint(0, 2, size=500)
+    p_doc_iso = np.random.uniform(0, 1, size=500)
+
+    # 4 sets of reliability diagrams on a 4x2 grid of axes
+    fig, axs = plt.subplots(4, 2, figsize=(10, 15),
+                            gridspec_kw={'height_ratios':[3,1,3,1]},
+                            sharex='col')
+    num_bins = 5
+
+    # 1) Platt (per label)
+    plot_reliability_diagram_4i(ax1=axs[0,0], ax2=axs[1,0],
+                                y_true=y_true_label,
+                                y_prob=p_platt_label,
+                                num_bins=num_bins,
+                                title_prefix="Platt (per label)")
+
+    # 2) Platt (per doc)
+    plot_reliability_diagram_4i(ax1=axs[0,1], ax2=axs[1,1],
+                                y_true=y_doc_platt,
+                                y_prob=p_doc_platt,
+                                num_bins=num_bins,
+                                title_prefix="Platt (per doc)")
+
+    # 3) Iso (per label)
+    plot_reliability_diagram_4i(ax1=axs[2,0], ax2=axs[3,0],
+                                y_true=y_true_iso_label,
+                                y_prob=p_iso_label,
+                                num_bins=num_bins,
+                                title_prefix="Iso (per label)")
+
+    # 4) Iso (per doc)
+    plot_reliability_diagram_4i(ax1=axs[2,1], ax2=axs[3,1],
+                                y_true=y_doc_iso,
+                                y_prob=p_doc_iso,
+                                num_bins=num_bins,
+                                title_prefix="Iso (per doc)")
+
+    plt.tight_layout()
+    plt.show()
+
+
