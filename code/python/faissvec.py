@@ -100,3 +100,40 @@ class DocumentClassifier:
             embedding_dimension=self.embedding_model.get_sentence_embedding_dimension(),
             gpu_id=gpu_id
         )
+
+
+
+def print_search_results(self, results: List[Dict]):
+    print('\n***Results Summary:')
+    print(f'Total search docs: {len(results)}')
+    print(f'Results per query: {k}')
+
+    # Print each document's results
+    for i, doc_results in enumerate(results):
+        print(f'\n*** Results for document {i}:')
+        
+        # Process distances and metadata for this document
+        distances = doc_results['distances']
+        metadatas = doc_results['metadatas']
+
+        # For each match
+        for j, (dist, meta) in enumerate(zip(distances, metadatas)):
+            print(f'\nMatch {j+1}:')
+            print(f'Label: {meta["label"]}')
+            # Convert distance to similarity based on algorithm
+            similarity = 1 - dist if self.vectordb.similarity_algo == 'l2' else dist
+            print(f'Similarity: {similarity:.4f}')
+            
+            # Calculate probability using softmax
+            exp_distances = np.exp(-np.array(distances))
+            probs = exp_distances / exp_distances.sum()
+            print(f'Probability: {probs[j]:.4f}')
+            
+            # Print full metadata
+            print(f'Metadata: {meta}')
+
+def get_doc_info():
+    print('***get_doc_info()')
+    print(f'*Total docs in list: {len(txt_list)}')
+    print('*Number of words per document:')
+    print(f'  avg_word_cnt:{avg_word_cnt} max_word_cnt:{max_word_cnt} min_word_cnt:{min_word_cnt}')
