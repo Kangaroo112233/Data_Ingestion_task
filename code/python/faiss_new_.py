@@ -269,3 +269,306 @@ if __name__ == "__main__":
     search_vectors = embedding_model.encode(search_text)
     results = search_in_faiss(search_vectors, faiss_index, metadata_list=[], k=2)
     print_search_results(results)
+
+
+##*******************************************************************************************************************************
+
+
+# Import Libraries
+import subprocess
+import torch
+import os
+import numpy as np
+import pandas as pd
+import time
+import warnings
+from tqdm import tqdm
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    classification_report
+)
+import re
+import subprocess
+import faiss
+from sentence_transformers import SentenceTransformer
+import psutil
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Define constants and configurations
+bs_t = '9200000' # 224250
+w2_t = '9205000' # 14285
+ps_t = '9204005' # 4467
+
+tup_to_name = {'9200000': 'Bank Statement',
+               '9205000': 'W2',
+               '9204005': 'Paystub'}
+
+# Set global variable to limit cuda memory split size
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:64"
+
+class MyEmbeddingFunction:
+    def __init__(self, embedding_model):
+        # Store the SentenceTransformer model
+        self.embedding_model = embedding_model
+        
+    def __call__(self, input_texts):
+        # Use the embedding model to generate embeddings
+        embeddings = self.embedding_model.encode(input_texts, show_progress_bar=False)
+        return embeddings.tolist()
+
+def get_process_uptime(pid):
+    """Calculate process uptime"""
+    try:
+        p = psutil.Process(pid)
+        create_time = p.create_time()
+        current_time = time.time()
+        uptime_seconds = current_time - create_time
+        hours, remainder = divmod(uptime_seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        return f"{int(hours)} hours, {int(minutes)} minutes"
+    except psutil.NoSuchProcess:
+        return "Process not found"
+
+def format_mem(mem_used_txt, MEM_TOT=40960):
+    """Format memory usage statistics"""
+    mem_used = int(mem_used_txt)
+    mem_free = MEM_TOT - mem_used
+    mem_used_f = f'{mem_used:,}'  # thousands format with comma
+    mem_free_f = f'{mem_free:,}'  # thousands format with comma
+    mem_used_msg = '{MB ({:.2f}%)'.format(mem_used_f, mem_used*100/MEM_TOT)
+    mem_free_msg = '{MB ({:.2f}%)'.format(mem_free_f, mem_free*100/MEM_TOT)
+    return mem_used_msg, mem_free_msg
+
+def initialize_faiss(embedding_dimension, similarity_metric='cosine'):
+    """Initialize FAISS index with specified similarity metric"""
+    if similarity_metric == 'cosine':
+        # Normalize vectors and use L2 for cosine similarity
+        index = faiss.IndexFlatIP(embedding_dimension)  # Inner product for normalized vectors
+    elif similarity_metric == 'l2':
+        index = faiss.IndexFlatL2(embedding_dimension)
+    else:
+        raise ValueError(f"Unsupported similarity metric: {similarity_metric}")
+    return index
+
+def load_embed_model_and_faiss(embedding_model_name, similarity_algo, device, gpu_id):
+    """Initialize embedding model and FAISS index"""
+    # Set GPU device
+    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_id
+    print('gpu_id:', gpu_id)
+    print('os.environ["CUDA_VISIBLE_DEVICES"]:', os.environ["CUDA_VISIBLE_DEVICES"])
+    
+    # Initialize embedding model
+    embedding_model = SentenceTransformer(embedding_model_name, device=device)
+    embedding_dimension = embedding_model.get_sentence_embedding_dimension()
+    
+    # Initialize FAISS index
+    faiss_index = initialize_faiss(embedding_dimension, similarity_algo)
+    
+    # Create embedding function
+    my_embedding_function = MyEmbeddingFunction(embedding_model)
+    
+    # Print GPU info
+    print('torch.cuda.is_available():', torch.cuda.is_available())
+    print('torch.cuda.device_count():', torch.cuda.device_count())
+    print('torch.cuda.current_device():', torch.cuda.current_device())
+    
+    return embedding_model, faiss_index, my_embedding_function
+
+def process_doc(txt_list):
+    """Process and analyze text documents"""
+    if VERBOSE_ON:
+        print('***process_doc()')
+        print('    Number of words per document:')
+    word_cnt_l = [len(txt.split()) for txt in txt_list]
+    avg_word_cnt = np.mean(word_cnt_l)
+    max_word_cnt = max(word_cnt_l)
+    min_word_cnt = min(word_cnt_l)
+    if VERBOSE_ON:
+        print(f'    avg_word_cnt:{int(avg_word_cnt)}    max_word_cnt:{max_word_cnt}    min_word_cnt:{min_word_cnt}')
+    return txt_list
+
+def keep_lines(txt_list, num_lines=4):
+    """Keep only specified number of lines from start and end of documents"""
+    return ['\n'.join(doc.splitlines()[:num_lines] + doc.splitlines()[-num_lines:]) for doc in txt_list]
+
+def chunk_document_with_overlap(text, chunk_size, overlap):
+    """Split text into chunks with overlap"""
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), chunk_size - overlap):
+        chunk = ' '.join(words[i:i + chunk_size])
+        chunks.append(chunk)
+    return chunks
+
+def do_chunking(txt_list, chunk_size, overlap):
+    """Process documents into chunks"""
+    lolo_chunks = [chunk_document_with_overlap(text, chunk_size, overlap) for text in txt_list]
+    
+    if VERBOSE_ON:
+        print('***do_chunking()')
+        print(f'CHUNK_SIZE:{chunk_size}    OVERLAP:{overlap}')
+        # Calculate statistics
+        chunks_per_doc = [len(chunks) for chunks in lolo_chunks]
+        words_per_chunk = [len(chunk.split()) for chunks in lolo_chunks for chunk in chunks]
+        print(f'Average chunks per doc: {np.mean(chunks_per_doc):.1f}')
+        print(f'Average words per chunk: {np.mean(words_per_chunk):.1f}')
+    
+    return lolo_chunks
+
+def make_metadata_clf(txt_list, lolo_chunks, df=None):
+    """Create metadata for document chunks"""
+    if df is None:
+        return None
+        
+    lolo_metadata = []
+    for chunk_list, (txt_idx, doc_info) in zip(lolo_chunks, df.iterrows()):
+        metadata_list = []
+        for chunk in chunk_list:
+            metadata = {
+                "label": doc_info['label'],
+                "first_pg": doc_info['first_pg'],
+                "is_split": doc_info['is_split'],
+                "pg_num": doc_info['pg_num'],
+                "st_pg": doc_info['st_pg'],
+                "en_pg": doc_info['en_pg'],
+            }
+            metadata_list.append(metadata)
+        lolo_metadata.append(metadata_list)
+    
+    if VERBOSE_ON:
+        print('***make_metadata_clf()')
+        print(f'Total documents: {len(lolo_metadata)}')
+        print(f'Total chunks: {sum(len(m) for m in lolo_metadata)}')
+    
+    return lolo_metadata
+
+def store_in_faiss(lolo_chunks, embedding_model, lolo_metadata, faiss_index):
+    """Store document vectors in FAISS index"""
+    cnt_before_loading = faiss_index.ntotal
+    
+    # Process each document and its chunks
+    all_vectors = []
+    all_metadata = []
+    
+    for doc_idx, (chunk_list, metadata_list) in enumerate(zip(lolo_chunks, lolo_metadata)):
+        # Generate embeddings for chunks
+        vectors = embedding_model.encode(chunk_list, show_progress_bar=False)
+        
+        # Store vectors and metadata
+        for chunk_idx, (chunk, vector, metadata) in enumerate(zip(chunk_list, vectors, metadata_list)):
+            all_vectors.append(vector)
+            all_metadata.append({
+                'doc_idx': doc_idx,
+                'chunk_idx': chunk_idx,
+                'text': chunk,
+                **metadata
+            })
+    
+    # Add to FAISS index
+    if all_vectors:
+        vectors_array = np.array(all_vectors).astype('float32')
+        faiss.normalize_L2(vectors_array)
+        faiss_index.add(vectors_array)
+    
+    cnt_after_loading = faiss_index.ntotal
+    if VERBOSE_ON:
+        print(f'Added {cnt_after_loading - cnt_before_loading} vectors to index')
+    
+    return all_metadata
+
+def search_in_faiss(query_texts, faiss_index, metadata_list, k=1):
+    """Search for similar documents in FAISS index"""
+    # Convert query to embeddings
+    query_vectors = np.array(query_texts).astype('float32')
+    faiss.normalize_L2(query_vectors)
+    
+    # Perform search
+    distances, indices = faiss_index.search(query_vectors, k)
+    
+    # Format results
+    results = []
+    for query_distances, query_indices in zip(distances, indices):
+        query_results = []
+        for dist, idx in zip(query_distances, query_indices):
+            if idx != -1:  # Valid result
+                query_results.append({
+                    'distance': float(dist),
+                    'similarity': (1 + float(dist)) / 2,  # Convert to similarity score
+                    'metadata': metadata_list[idx]
+                })
+        results.append(query_results)
+    
+    return results
+
+def print_search_results(lolo_results, k=1):
+    """Print formatted search results"""
+    print(f'\n***Results: Total search docs={len(lolo_results)}. Each search doc has k={k} results\n')
+    
+    for idx, results in enumerate(lolo_results):
+        print(f'*** Result for document: {idx}')
+        for result in results:
+            print(f"Distance: {result['distance']:.6f}")
+            print(f"Similarity: {result['similarity']:.6f}")
+            print(f"Metadata: {result['metadata']}")
+            print('-' * 40)
+
+def extract_probability_v1(query_text, faiss_index, metadata_list, embedding_model, k=5):
+    """Calculate extraction probabilities using basic similarity"""
+    # Encode query
+    query_vector = embedding_model.encode([query_text])
+    query_vector = query_vector.astype('float32')
+    faiss.normalize_L2(query_vector)
+    
+    # Search
+    D, I = faiss_index.search(query_vector, k)
+    
+    # Process results
+    results = []
+    for dist, idx in zip(D[0], I[0]):
+        if idx != -1:
+            similarity = (1 + dist) / 2
+            results.append({
+                'similarity': similarity,
+                'metadata': metadata_list[idx]
+            })
+    
+    return results
+
+def extract_probability_v2(query_text, faiss_index, metadata_list, embedding_model, k=5):
+    """Calculate extraction probabilities with normalized scores"""
+    # Encode query
+    query_vector = embedding_model.encode([query_text])
+    query_vector = query_vector.astype('float32')
+    faiss.normalize_L2(query_vector)
+    
+    # Search
+    D, I = faiss_index.search(query_vector, k)
+    
+    # Process results with probability normalization
+    results = []
+    total_similarity = 0
+    
+    for dist, idx in zip(D[0], I[0]):
+        if idx != -1:
+            similarity = (1 + dist) / 2
+            total_similarity += similarity
+            results.append({
+                'similarity': similarity,
+                'metadata': metadata_list[idx]
+            })
+    
+    # Normalize probabilities
+    if total_similarity > 0:
+        for result in results:
+            result['probability'] = result['similarity'] / total_similarity
+    
+    return results
+
+# Global configuration
+VERBOSE_ON = False
