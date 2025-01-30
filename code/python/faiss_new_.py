@@ -572,3 +572,40 @@ def extract_probability_v2(query_text, faiss_index, metadata_list, embedding_mod
 
 # Global configuration
 VERBOSE_ON = False
+
+
+
+
+
+
+def process_chunks_for_faiss(chunks, model):
+    """
+    Process text chunks into vectors suitable for FAISS
+    
+    Args:
+        chunks: List of text chunks
+        model: The embedding model to use (should be defined elsewhere in your code)
+    
+    Returns:
+        numpy array of vectors with shape (n_chunks, vector_dim)
+    """
+    # First ensure chunks are cleaned and standardized
+    cleaned_chunks = [chunk.strip() for chunk in chunks]
+    
+    # Convert chunks to vectors using your embedding model
+    vectors = np.array([
+        model.encode(chunk) for chunk in cleaned_chunks
+    ], dtype='float32')
+    
+    # Normalize vectors (since FAISS works better with normalized vectors)
+    faiss.normalize_L2(vectors)
+    
+    return vectors
+
+# Then modify your search code:
+srch_vectors = process_chunks_for_faiss(srch_lolo_chunks, embedding_model)
+k = 2
+lolo_results = search_in_faiss(srch_lolo_chunks,
+                              srch_vectors,  # Use the processed vectors
+                              metadata,
+                              k=k)
