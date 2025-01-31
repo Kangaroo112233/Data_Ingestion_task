@@ -256,3 +256,47 @@ for i, r in enumerate(advanced_results):
     print(f"Advanced Match {i+1}: {r['document']}")
     print(f"Metadata: {r['metadata']}")
     print(f"Similarity Score: {r['score']:.4f}\n")
+
+
+########################################
+# STEP 11: First Page Detection
+########################################
+
+def detect_first_page_chunks(df):
+    """
+    Given the dataframe (df) where each row has:
+      - df["chunks"] (a list of text chunks)
+      - df["chunk_metadata"] (a list of dicts, each containing 'first_pg': bool)
+    Return a list of all first-page chunks along with relevant information.
+    """
+    first_page_docs = []
+    
+    for idx, row in df.iterrows():
+        chunk_list = row["chunks"]
+        metadata_list = row["chunk_metadata"]
+        
+        for chunk_idx, (chunk_text, meta) in enumerate(zip(chunk_list, metadata_list)):
+            if meta["first_pg"]:
+                # This chunk is flagged as the first page
+                first_page_docs.append({
+                    "doc_index": idx,       # the row index in df
+                    "chunk_index": chunk_idx,
+                    "chunk_text": chunk_text,
+                    "metadata": meta,
+                    "label": row["label"]
+                })
+                
+    return first_page_docs
+
+# Example usage:
+first_pages = detect_first_page_chunks(df)
+
+# Print out a few examples
+for fp in first_pages[:5]:  # just show first 5 for demonstration
+    print("=== First Page Chunk ===")
+    print("Document Index:", fp["doc_index"])
+    print("Chunk Index:", fp["chunk_index"])
+    print("Label:", fp["label"])
+    print("Metadata:", fp["metadata"])
+    print("Chunk Text:", fp["chunk_text"])
+    print("------------------------")
