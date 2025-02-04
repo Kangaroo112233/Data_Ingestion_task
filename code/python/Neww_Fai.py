@@ -1054,3 +1054,58 @@ df_info(df)
 # (The remainder of the code – including model loading, data processing, chunking, metadata creation, storing into the vector DB, searching,
 # and performance evaluation – remains unchanged in order and logic. Since we now use FAISSVectorDB in place of ChromaDB, all calls to
 # initialize_ChromaDB(), store_in_db(), and search_in_db() will operate via our FAISS-backed implementation.)
+
+def generate_results(true_labels, pred_labels, details=False):
+    """
+    Compute performance metrics given the true and predicted labels.
+    
+    Assumes that each entry in true_labels and pred_labels is formatted as "label:first_pg".
+    For example: "Bank Statement:True" or "W2:False".
+
+    Returns:
+        doc_acc: Overall accuracy (exact string match)
+        label_acc: Accuracy of the label part only
+        first_page_acc: Accuracy of the first page flag part only
+        df_res: A pandas DataFrame with the actual and predicted results
+    """
+    import pandas as pd
+    from sklearn.metrics import accuracy_score, classification_report
+
+    # Create a DataFrame of the results for later inspection if needed
+    df_res = pd.DataFrame({
+        "actual_result": true_labels,
+        "pred_result": pred_labels
+    })
+    
+    # Overall document accuracy (exact match of the entire string)
+    doc_acc = accuracy_score(true_labels, pred_labels)
+    
+    # Split the strings into their components
+    # Expected format: "label:first_pg"
+    true_split = [s.split(":") for s in true_labels]
+    pred_split = [s.split(":") for s in pred_labels]
+    
+    true_labels_only = [parts[0] if len(parts) > 0 else s for parts in true_split]
+    true_first_pg = [parts[1] if len(parts) > 1 else "" for parts in true_split]
+    
+    pred_labels_only = [parts[0] if len(parts) > 0 else s for parts in pred_split]
+    pred_first_pg = [parts[1] if len(parts) > 1 else "" for parts in pred_split]
+    
+    # Compute accuracy for the label and first page parts separately
+    label_acc = accuracy_score(true_labels_only, pred_labels_only)
+    first_page_acc = accuracy_score(true_first_pg, pred_first_pg)
+    
+    if details:
+        print("**************** Results *****************")
+        print(f"Doc level accuracy: {doc_acc:.2f}")
+        print(f"Label level accuracy: {label_acc:.2f}")
+        print(f"First Page accuracy: {first_page_acc:.2f}")
+        print("\n*** Overall Performance ***")
+        print(classification_report(true_labels, pred_labels))
+        print("\n*** Label Performance ***")
+        print(classification_report(true_labels_only, pred_labels_only))
+        print("\n*** First Page Performance ***")
+        print(classification_report(true_first_pg, pred_first_pg))
+    
+    return doc_acc, label_acc, first_page_acc, df_res
+
