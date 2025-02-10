@@ -612,12 +612,23 @@ for idx, results in enumerate(lolo_results):
     distances = result_dict.get('distances', [[0]])[0]  # Extract first list
     cos_sim = [1 - max(0, dist) for dist in distances]
 
-    # Accessing metadata correctly by extracting from list
-    metadata = result_dict['metadatas'][0]  # Ensure we access the first dictionary in the list
+    # Debugging: Check metadata structure
+    print(f"Type of result_dict['metadatas']: {type(result_dict['metadatas'])}")
+    print(f"Content of result_dict['metadatas']: {result_dict['metadatas']}")
 
-    pred_label_l.append(metadata['label'])
-    pred_first_pg_l.append(metadata['first_pg'])
-    pred_pg_num_l.append(metadata['pg_num'])
+    # Extract metadata correctly
+    metadata = result_dict['metadatas']
+    if isinstance(metadata, list) and len(metadata) > 0:
+        metadata = metadata[0]  # Extract first dictionary in the list
+
+    if isinstance(metadata, dict):
+        pred_label_l.append(metadata.get('label', 'Unknown'))
+        pred_first_pg_l.append(metadata.get('first_pg', False))
+        pred_pg_num_l.append(metadata.get('pg_num', 0))
+    else:
+        print(f"Skipping index {idx}, unexpected metadata format:", metadata)
+        continue
+
     pred_score_l.append(cos_sim[0])
 
 
