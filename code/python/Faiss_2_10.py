@@ -771,3 +771,44 @@ if len(label_l) == len(pred_label_l) and len(label_l) > 0:
 else:
     print(f"Error: Mismatched label and prediction sizes. Label size: {len(label_l)}, Prediction size: {len(pred_label_l)}")
 
+
+
+# Evaluation: Compare ground-truth metadata to the predicted metadata from search results.
+
+pred_label_l, pred_first_pg_l, pred_pg_num_l, pred_score_l = [], [], [], []
+
+for idx, results in enumerate(lolo_results):
+    print(f"Processing document#: {idx}")
+
+    # Ensure results[0] is a dictionary
+    if isinstance(results[0], list) and len(results[0]) > 0:
+        result_dict = results[0]  # Extract the dictionary inside the list
+    elif isinstance(results[0], dict):
+        result_dict = results[0]  # Use it directly
+    else:
+        print(f"Skipping index {idx}, unexpected format:", results[0])
+        continue
+
+    # Extract distance values
+    distances = result_dict.get('distances', [[0]])[0]
+    cos_sim = 1 - max(0, *distances)  # Compute similarity score
+
+    # Extract metadata values
+    if 'metadatas' in result_dict and isinstance(result_dict['metadatas'], list) and len(result_dict['metadatas']) > 0:
+        metadata = result_dict['metadatas'][0]  # Extract first metadata dictionary
+        pred_label_l.append(metadata.get('label', 'Unknown'))
+        pred_first_pg_l.append(metadata.get('first_pg', False))
+        pred_pg_num_l.append(metadata.get('pg_num', -1))
+    else:
+        print(f"Skipping index {idx}, metadata not found")
+        continue
+
+    pred_score_l.append(cos_sim)
+
+label_l, first_page_l = [], []
+
+for idx, results in enumerate(srch_lolo_metadata):
+    label_l.append(results[0].get('label', 'Unknown'))
+    first_page_l.append(results[0].get('first_pg', False))
+
+print("Evaluation Completed")
