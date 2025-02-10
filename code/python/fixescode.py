@@ -56,3 +56,64 @@ for idx, results in enumerate(srch_lolo_metadata):
         print(f"Skipping index {idx}, unexpected format in ground truth metadata:", results)
 
 print("Evaluation Completed")
+
+
+
+def print_search_results(lolo_results, k=1):
+    """
+    Print search results from FAISS vector database in a clear, formatted way.
+    
+    Args:
+        lolo_results: List of lists of results from FAISS search
+        k: Number of nearest neighbors retrieved per query (default=1)
+    """
+    print("\n=== Search Results Summary ===")
+    print(f"Total search documents: {len(lolo_results)}")
+    print(f"Results per search (k): {k}")
+    print("=============================\n")
+    
+    for doc_idx, doc_results in enumerate(lolo_results):
+        print(f"\nDocument #{doc_idx + 1}")
+        print("─" * 40)
+        
+        # Handle each chunk's results
+        for chunk_idx, chunk_result in enumerate(doc_results):
+            print(f"\nChunk {chunk_idx + 1}:")
+            
+            # Extract the nested results structure
+            # FAISS results are structured as: [{'ids': [[...]], 'distances': [[...]], etc}]
+            result_dict = chunk_result[0]  # First (and only) result dictionary
+            
+            # Get distances and compute similarity scores
+            distances = result_dict['distances'][0]  # First list of distances
+            similarities = [1 - max(0, dist) for dist in distances]
+            
+            # Print each matching result
+            for i in range(len(distances)):
+                print("\n  Match Details:")
+                print(f"  • Similarity Score: {similarities[i]:.2%}")
+                
+                # Print ID if available
+                if 'ids' in result_dict and result_dict['ids'][0]:
+                    print(f"  • ID: {result_dict['ids'][0][i]}")
+                
+                # Print metadata if available
+                if 'metadatas' in result_dict and result_dict['metadatas'][0]:
+                    metadata = result_dict['metadatas'][0][i]
+                    print("  • Metadata:")
+                    for key, value in metadata.items():
+                        print(f"    - {key}: {value}")
+                
+                # Print document content if available
+                if 'documents' in result_dict and result_dict['documents'][0]:
+                    doc_content = result_dict['documents'][0][i]
+                    print("  • Document Content:")
+                    # Truncate long documents for display
+                    max_chars = 200
+                    if len(doc_content) > max_chars:
+                        doc_content = doc_content[:max_chars] + "..."
+                    print(f"    {doc_content}")
+            
+            print("\n" + "·" * 30)  # Separator between chunks
+        
+        print("─" * 40)  # Separator between documents
