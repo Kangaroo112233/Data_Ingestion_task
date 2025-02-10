@@ -595,3 +595,46 @@ def print_search_results(lolo_results):
 
 print_search_results(lolo_results)
 
+
+# Evaluation: Compare ground-truth metadata to the predicted metadata from search results.
+pred_label_l, pred_first_pg_l, pred_pg_num_l, pred_score_l = list(), list(), list(), list()
+
+for idx, results in enumerate(lolo_results):
+    # Ensure results[0] is a list containing a dictionary
+    if isinstance(results[0], list) and len(results[0]) > 0:
+        result_dict = results[0][0]  # Extract the dictionary inside the list
+    elif isinstance(results[0], dict):
+        result_dict = results[0]  # Use it directly if it's already a dictionary
+    else:
+        print(f"Skipping index {idx}, unexpected format:", results[0])
+        continue
+
+    distances = result_dict.get('distances', [[0]])[0]  # Extract first list
+    cos_sim = [1 - max(0, dist) for dist in distances]
+
+    pred_label_l.append(result_dict['metadatas'][0]['label'])
+    pred_first_pg_l.append(result_dict['metadatas'][0]['first_pg'])
+    pred_pg_num_l.append(result_dict['metadatas'][0]['pg_num'])
+    pred_score_l.append(cos_sim[0])
+
+
+# Ground truths
+label_l, first_page_l = list(), list()
+for idx, results in enumerate(srch_lolo_metadata):
+    label_l.append(results[0]['label'])
+    first_page_l.append(results[0]['first_pg'])
+
+
+print("*** Label Performance ***")
+print("Ground Truth:", label_l[:10])
+print("Prediction :", pred_label_l[:10])
+print("\n Classification report:", classification_report(label_l, pred_label_l))
+print("---------------------------------------\n")
+
+print("*** First Page Performance ***")
+print("Ground Truth:", first_page_l[:10])
+print("Prediction :", pred_first_pg_l[:10])
+print("\n Classification report:", classification_report(first_page_l, pred_first_pg_l))
+print("---------------------------------------\n")
+
+
