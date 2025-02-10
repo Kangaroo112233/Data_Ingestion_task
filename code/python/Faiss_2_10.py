@@ -559,3 +559,39 @@ metrics = {
 }
 
 print("Metrics for split-classifier at document level:\n", metrics)
+
+
+def print_search_results(lolo_results):
+    print()
+    print(f"**Results: Total search docs={len(lolo_results)}. Each search doc has k={k} results\n")
+    
+    for idx, results in enumerate(lolo_results):
+        print(f"*** Result for document#: {idx}")
+
+        # Debugging: Print type and structure
+        print(f"Type of results[0]: {type(results[0])}")
+        print(f"Content of results[0]: {results[0]}")
+
+        # Ensure results[0] is a list containing a dictionary
+        if isinstance(results[0], list) and len(results[0]) > 0:
+            result_dict = results[0][0]  # Extract the dictionary inside the list
+        elif isinstance(results[0], dict):
+            result_dict = results[0]  # Use it directly if it's already a dictionary
+        else:
+            print(f"Skipping index {idx}, unexpected format:", results[0])
+            continue
+
+        distances = result_dict.get('distances', [[0]])[0]  # Extract first list
+        cos_sim = [1 - max(0, dist) for dist in distances]
+
+        for key in ['ids', 'distances', 'metadatas']:
+            if key in result_dict:
+                print(f"{key:10s}: {result_dict[key]}")
+            else:
+                print(f"{key:10s}: Key not found")
+
+        print("similarity score:", cos_sim)
+        print("************************")
+
+print_search_results(lolo_results)
+
