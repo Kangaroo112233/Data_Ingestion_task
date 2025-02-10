@@ -703,3 +703,71 @@ print("Ground Truth:", first_page_l[:10])
 print("Prediction :", pred_first_pg_l[:10])
 print("\n Classification report:", classification_report(first_page_l, pred_first_pg_l))
 print("---------------------------------------\n")
+
+
+# FAISS-specific implementation
+# Ensure FAISS metadata is loaded beforehand, as FAISS does not store metadata by default
+faiss_metadata = []  # Preload FAISS metadata, this should be populated before performing queries.
+
+# Function to simulate or extract metadata for FAISS
+def load_faiss_metadata():
+    global faiss_metadata
+    # This is where you load the metadata corresponding to the FAISS vectors, for example:
+    faiss_metadata = [
+        {"label": "Bank Statement", "first_pg": True, "pg_num": 1},
+        {"label": "Paystub", "first_pg": True, "pg_num": 2},
+        # Populate with actual metadata
+    ]
+
+# Initialize FAISS metadata before performing queries
+load_faiss_metadata()
+
+# Evaluation: Compare ground-truth metadata to the predicted metadata from search results.
+pred_label_l, pred_first_pg_l, pred_pg_num_l, pred_score_l = list(), list(), list(), list()
+
+# Iterate over FAISS query results (lolo_results contains vector search results)
+for idx, results in enumerate(lolo_results):
+    # FAISS does not return metadata, so we need to use metadata from preloaded `faiss_metadata`
+    if idx < len(faiss_metadata):
+        result_dict = results[0][0] if isinstance(results[0], list) and len(results[0]) > 0 else results[0]
+        
+        # Extract distances and calculate similarity
+        distances = result_dict.get('distances', [[0]])[0]  # Extract the first list of distances
+        cos_sim = [1 - max(0, dist) for dist in distances]
+
+        # Use metadata from FAISS preloaded metadata
+        metadata = faiss_metadata[idx]  # Retrieve the metadata corresponding to the query result
+
+        # Ensure that the metadata is a dictionary before accessing
+        if isinstance(metadata, dict):
+            pred_label_l.append(metadata.get('label', 'Unknown'))
+            pred_first_pg_l.append(metadata.get('first_pg', False))
+            pred_pg_num_l.append(metadata.get('pg_num', 0))
+        else:
+            print(f"Skipping index {idx}, unexpected metadata format:", metadata)
+            continue
+
+        pred_score_l.append(cos_sim[0])  # Store similarity score for the prediction
+
+# Ground truth labels and first page information from `srch_lolo_metadata`
+label_l, first_page_l = list(), list()
+for idx, results in enumerate(srch_lolo_metadata):
+    label_l.append(results[0]['label'])
+    first_page_l.append(results[0]['first_pg'])
+
+# Ensure both lists have the same length before calling classification_report
+if len(label_l) == len(pred_label_l) and len(label_l) > 0:
+    print("*** Label Performance ***")
+    print("Ground Truth:", label_l[:10])
+    print("Prediction :", pred_label_l[:10])
+    print("\n Classification report:", classification_report(label_l, pred_label_l))
+    print("---------------------------------------\n")
+
+    print("*** First Page Performance ***")
+    print("Ground Truth:", first_page_l[:10])
+    print("Prediction :", pred_first_pg_l[:10])
+    print("\n Classification report:", classification_report(first_page_l, pred_first_pg_l))
+    print("---------------------------------------\n")
+else:
+    print(f"Error: Mismatched label and prediction sizes. Label size: {len(label_l)}, Prediction size: {len(pred_label_l)}")
+
