@@ -612,9 +612,12 @@ for idx, results in enumerate(lolo_results):
     distances = result_dict.get('distances', [[0]])[0]  # Extract first list
     cos_sim = [1 - max(0, dist) for dist in distances]
 
-    pred_label_l.append(result_dict['metadatas'][0]['label'])
-    pred_first_pg_l.append(result_dict['metadatas'][0]['first_pg'])
-    pred_pg_num_l.append(result_dict['metadatas'][0]['pg_num'])
+    # Accessing metadata correctly by extracting from list
+    metadata = result_dict['metadatas'][0]  # Ensure we access the first dictionary in the list
+
+    pred_label_l.append(metadata['label'])
+    pred_first_pg_l.append(metadata['first_pg'])
+    pred_pg_num_l.append(metadata['pg_num'])
     pred_score_l.append(cos_sim[0])
 
 
