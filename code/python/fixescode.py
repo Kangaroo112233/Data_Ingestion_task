@@ -117,3 +117,45 @@ def print_search_results(lolo_results, k=1):
             print("\n" + "·" * 30)  # Separator between chunks
         
         print("─" * 40)  # Separator between documents
+
+
+ # Safely access metadata
+            metadatas = result.get('metadatas', [[]])[0]
+            if metadatas and isinstance(metadatas, list) and len(metadatas) > 0:
+                metadata = metadatas[0]
+            else:
+                metadata = metadatas if metadatas else {}
+                
+            # Append predictions with safe gets
+            pred_label_l.append(metadata.get('label', 'unknown'))
+            pred_first_pg_l.append(metadata.get('first_pg', -1))
+            pred_pg_num_l.append(metadata.get('pg_num', -1))
+            pred_score_l.append(sim_score)
+            
+        except Exception as e:
+            print(f"Error processing result {idx}: {str(e)}")
+            print(f"Result content: {results}")
+            # Append default values on error
+            pred_label_l.append('error')
+            pred_first_pg_l.append(-1)
+            pred_pg_num_l.append(-1)
+            pred_score_l.append(0)
+    
+    # Initialize lists for ground truth
+    label_l = []
+    first_page_l = []
+    
+    # Process ground truth from metadata
+    for idx, metadata in enumerate(srch_lolo_metadata):
+        try:
+            # Safely access ground truth metadata
+            if metadata and isinstance(metadata, list) and len(metadata) > 0:
+                label_l.append(metadata[0].get('label', 'unknown'))
+                first_page_l.append(metadata[0].get('first_pg', -1))
+            else:
+                label_l.append('unknown')
+                first_page_l.append(-1)
+        except Exception as e:
+            print(f"Error processing metadata {idx}: {str(e)}")
+            label_l.append('error')
+            first_page_l.append(-1)
