@@ -66,3 +66,86 @@ updated_testdf = await batch_doc_classification_rag(
 
 # View results
 print(updated_testdf[["truncated_text", "label", "pred_doc_label"]].head(10))
+
+
+import asyncio
+import random
+
+async def batch_doc_classification_rag(
+    testdf, vector_db, model_name, model_params, top_k=3, batch_size=2, max_retries=3
+):
+    """
+    Processes document classification for all rows asynchronously using `asyncio.gather()`
+    with error handling, retries, and rate limiting.
+
+    Args:
+        testdf (pd.DataFrame): Dataframe with a 'truncated_text' column.
+        vector_db: Chroma DB collection.
+        model_name (str): Model name (e.g., "Meta-llama-3.3-7B-Instruct").
+        model_params (dict): Model parameters like temperature, top_p.
+        top_k (int): Number of retrieved chunks.
+        batch_size (int): Number of requests to process in parallel.
+        max_retries (int): Maximum number of retries for failed requests.
+
+    Returns:
+        pd.DataFrame: Updated dataframe with 'pred_doc_label' column.
+    """
+    
+    predicted_labels = []
+
+    async def process_row(row, attempt=1):
+        """Helper function to classify a single row with retry logic."""
+        user_query = row["truncated_text"]
+        try:
+            result = await doc_classification_rag(
+                user_query=user_query,
+                vector_db=vector_db,
+                model_name=model_name,
+                model_params=model_params,
+                top_k=top_k
+            )
+
+            # Parse response
+            if isinstance(result, dict) and "choices" in result:
+                classification_text = result["choices"][0].get("text", "").strip()
+            else:
+                classification_text = str(result).strip()
+            
+            return classification_text
+
+        except Exception as e:
+            # If the server error persists, retry up to `max_retries`
+            if attempt < max_retries:
+                print(f"Retry {attempt}/{max_retries} for {user_query} due to error: {e}")
+                await asyncio.sleep(random.uniform(1, 3))  # Randomized delay before retrying
+                return await process_row(row, attempt + 1)
+            else:
+                print(f"Max retries reached for {user_query}. Logging failure.")
+                return f"Error: {str(e)}"
+
+    # Process in batches
+    for i in range(0, len(testdf), batch_size):
+        batch = testdf.iloc[i : i + batch_size]  # Get batch
+        tasks = [process_row(row) for _, row in batch.iterrows()]  # Create async tasks
+        batch_results = await asyncio.gather(*tasks)  # Execute tasks concurrently
+        predicted_labels.extend(batch_results)  # Store results
+
+        # Add a short delay between batches to prevent rate limiting
+        await asyncio.sleep(random.uniform(1, 2))  # Randomized delay
+
+    # Update DataFrame
+    testdf["pred_doc_label"] = predicted_labels
+    return testdf
+updated_testdf = await batch_doc_classification_rag(
+    testdf=testdf,
+    vector_db=vector_db,
+    model_name="Meta-llama-3.3-70B-Instruct",
+    model_params={"temperature": 0.2, "top_p": 0.95},
+    top_k=3,
+    batch_size=2,  # Adjust based on API Limits
+    max_retries=3  # Number of times to retry on failure
+)
+
+# View results
+print(updated_testdf[["truncated_text", "label", "pred_doc_label"]].head(10))
+
