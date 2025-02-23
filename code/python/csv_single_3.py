@@ -61,3 +61,56 @@ if data:
     print(f"\nData saved to: {output_file}")
 else:
     print("\nNo data was processed.")
+
+
+
+
+
+
+import json
+import pandas as pd
+from tqdm import tqdm
+
+results = []
+
+for idx, document in tqdm(df.iterrows()):
+    text = document['text']
+
+    output = await prompt_model(
+        query=text,
+        system_prompt=system_prompt,
+        user_role="document",
+        model_name=model_name,
+        temperature=1e-3,
+        top_p=0.95,
+        logprobs=True,
+        print_output=False,
+    )
+
+    # Extract response
+    raw_result = output['choices'][0]['message']['content'].replace("`", "").strip()
+
+    # Attempt to clean malformed JSON
+    try:
+        # Fix missing curly braces
+        if not raw_result.startswith("{"):
+            raw_result = "{" + raw_result.split("{", 1)[-1]
+        if not raw_result.endswith("}"):
+            raw_result = raw_result.rsplit("}", 1)[0] + "}"
+
+        # Validate and parse JSON
+        result = json.loads(raw_result)
+        results.append(result)
+
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error at index {idx}: {e}")
+        print("Raw output:", raw_result)
+        results.append({"error": "Invalid JSON", "raw_output": raw_result})  # Store error info
+
+# Convert results to DataFrame
+results_df = pd.DataFrame(results)
+
+# Save results to CSV
+results_df.to_csv("ESO_extraction_Death-Certificate_200_1.csv", index=False)
+print("Results saved to ESO_extraction_Death-Certificate_200_1.csv")
+
