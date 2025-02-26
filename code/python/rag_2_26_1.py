@@ -473,3 +473,109 @@ for doc_type in doc_types:
         print(f"{doc_type:<15} {precision:.2f}   {recall:.2f}   {f1:.2f}   {support}")
 
 print(f"\naccuracy{'':<13} {doc_type_accuracy:.2f}   {len(valid_results)}")
+
+
+import pandas as pd
+import numpy as np
+from sklearn.metrics import classification_report, precision_recall_fscore_support
+
+# Process ChromaDB results
+# This part extracts metadata from the retrieval results
+pred_label_l, pred_first_pg_l, pred_pg_num_l, pred_score_l = list(), list(), list(), list()
+for idx, results in enumerate(lolo_results):
+    #print(f"*** Result for document#: {idx}")
+    
+    # Debugging: Print type and structure
+    # print(f"Type of results[0]: {type(results[0])}")
+    # print(f"Content of results[0]: {results[0]}")
+    
+    # Ensure results[0] is a list containing a dictionary
+    if isinstance(results[0], list) and len(results[0]) > 0:
+        result_dict = results[0][0]  # Extract the dictionary inside the list
+    elif isinstance(results[0], dict):
+        result_dict = results[0]  # Use it directly if it's already a dictionary
+    else:
+        print(f"Skipping index {idx}, unexpected format:", results[0])
+        continue
+    
+    distances = result_dict.get('distances', [[0]])[0]  # Extract first list
+    cos_sim = [1 - max(0, dist) for dist in distances]
+    
+    #print(type(results[0]))
+    #print(results[0])
+    pred_label_l.append(results[0][0]['metadatas'][0][0]['label'])
+    pred_first_pg_l.append(results[0][0]['metadatas'][0][0]['first_pg'])
+    pred_pg_num_l.append(results[0][0]['metadatas'][0][0]['pg_num'])
+    pred_score_l.append(cos_sim[0])
+
+# Get ground truth labels from metadata
+label_l, first_page_l = list(), list()
+for idx, results in enumerate(srch_lolo_metadata):
+    label_l.append(results[0]['label'])
+    first_page_l.append(results[0]['first_pg'])
+
+# Create a dataframe to store results
+resdf = pd.DataFrame({
+    'actual_label': label_l,
+    'predicted_label': pred_label_l,
+    'actual_first_page': first_page_l,
+    'predicted_first_page': pred_first_pg_l,
+    'actual_result': [f"{l}:{fp}" for l, fp in zip(label_l, first_page_l)],
+    'pred_result': [f"{l}:{fp}" for l, fp in zip(pred_label_l, pred_first_pg_l)]
+})
+
+# Print Label Performance
+print("*** Label Performance ***")
+print("Ground Truth:", label_l[:10])
+print("Prediction :", pred_label_l[:10])
+print("\nClassification report:")
+print(classification_report(label_l, pred_label_l))
+print("-" * 40 + "\n")
+
+# First Page Performance Report
+print("*** First Page Performance ***")
+print("Ground Truth:", first_page_l[:10])
+print("Prediction :", pred_first_pg_l[:10])
+print("\nClassification report:")
+print(classification_report(first_page_l, pred_first_pg_l))
+print("-" * 40 + "\n")
+
+# Combined Classification Performance
+print("***Classification Performance ***")
+print("\nClassification report:")
+print(classification_report(resdf['actual_result'], resdf['pred_result']))
+print("-" * 40 + "\n")
+
+# Calculate chunk-based metrics
+print("Chunk size: 150")
+print("*** Overall Performance ***")
+
+# Overall metrics by document type
+for doc_type in sorted(set(label_l)):
+    mask = (np.array(label_l) == doc_type)
+    if np.sum(mask) > 0:
+        precision, recall, f1, support = precision_recall_fscore_support(
+            (np.array(label_l) == doc_type),
+            (np.array(pred_label_l) == doc_type),
+            average='binary',
+            pos_label=True
+        )
+        print(f"{doc_type:<15} {precision:.2f}   {recall:.2f}   {f1:.2f}   {support}")
+
+# Overall accuracy
+accuracy = np.mean(np.array(label_l) == np.array(pred_label_l))
+print(f"\naccuracy{'':<13} {accuracy:.2f}   {len(label_l)}")
+
+# Detailed metrics by document type and first page combination
+print("\n*** First Page Performance ***")
+for doc_type in sorted(set(label_l)):
+    for is_first in [False, True]:
+        combo = f"{doc_type}:{is_first}"
+        y_true = np.array([f"{l}:{f}" == combo for l, f in zip(label_l, first_page_l)])
+        y_pred = np.array([f"{l}:{f}" == combo for l, f in zip(pred_label_l, pred_first_pg_l)])
+        
+        if np.sum(y_true) > 0:
+            precision, recall, f1, support = precision_recall_fscore_support(
+                y_true, y_pred, average='binary', pos_label=True
+            )
+            print(f"{combo:<20} {precision:.2f}   {recall:.2f}   {f1:.2f}   {support}")
