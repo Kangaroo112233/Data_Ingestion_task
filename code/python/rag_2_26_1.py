@@ -380,3 +380,96 @@ print("*** Overall Performance ***")
 print(f"\nprecision  recall  f1-score  support")
 # This would normally be calculated with a different chunk size, but we're using the same data
 print(label_perf)
+
+
+import pandas as pd
+import numpy as np
+from sklearn.metrics import classification_report, precision_recall_fscore_support
+
+# Load the results
+# Assuming your CSV has columns like 'actual_label', 'predicted_label', 'actual_first_page', 'predicted_first_page'
+results_df = pd.read_csv("document_classification_results.csv")
+
+# Filter out errors/invalid results
+valid_results = results_df.dropna(subset=['predicted_label', 'actual_label', 'predicted_first_page', 'actual_first_page'])
+valid_results = valid_results[valid_results['predicted_label'] != 'ERROR']
+
+# Create combined labels (DocType:FirstPage)
+valid_results['actual_result'] = valid_results.apply(
+    lambda x: f"{x['actual_label']}:{x['actual_first_page']}", axis=1
+)
+valid_results['pred_result'] = valid_results.apply(
+    lambda x: f"{x['predicted_label']}:{x['predicted_first_page']}", axis=1
+)
+
+# Extract lists for comparison like in your images
+label_l = valid_results['actual_label'].tolist()
+first_page_l = valid_results['actual_first_page'].tolist()
+pred_label_l = valid_results['predicted_label'].tolist()
+pred_first_pg_l = valid_results['predicted_first_page'].tolist()
+
+# 1. Label Performance Report
+print("*** Label Performance ***")
+print("Ground Truth:", label_l[:10])
+print("Prediction :", pred_label_l[:10])
+print("\nClassification report:")
+print(classification_report(label_l, pred_label_l))
+print("-" * 40 + "\n")
+
+# 2. First Page Performance Report
+print("*** First Page Performance ***")
+print("Ground Truth:", first_page_l[:10])
+print("Prediction :", pred_first_pg_l[:10])
+print("\nClassification report:")
+print(classification_report(first_page_l, pred_first_pg_l))
+print("-" * 40 + "\n")
+
+# 3. Combined Classification Performance
+print("***Classification Performance ***")
+print("\nClassification report:")
+print(classification_report(valid_results['actual_result'], valid_results['pred_result']))
+print("-" * 40 + "\n")
+
+# 4. Generate by-class metrics for the combined classification
+print("*** Detailed Classification by Document Type and First Page ***")
+# Get unique document types and first-page values
+doc_types = valid_results['actual_label'].unique()
+first_page_values = [True, False]
+
+# Calculate metrics for each combination
+for doc_type in doc_types:
+    for is_first_page in first_page_values:
+        category = f"{doc_type}:{is_first_page}"
+        
+        # Create binary vectors for this category
+        y_true = (valid_results['actual_result'] == category)
+        y_pred = (valid_results['pred_result'] == category) 
+        
+        if y_true.sum() > 0:  # Only process if this category exists in the data
+            precision, recall, f1, support = precision_recall_fscore_support(
+                y_true, y_pred, average='binary', pos_label=True
+            )
+            
+            print(f"{category:<20} {precision:.2f}   {recall:.2f}   {f1:.2f}   {support}")
+
+# 5. Overall accuracy for both tasks
+doc_type_accuracy = (valid_results['actual_label'] == valid_results['predicted_label']).mean()
+first_page_accuracy = (valid_results['actual_first_page'] == valid_results['predicted_first_page']).mean()
+combined_accuracy = (valid_results['actual_result'] == valid_results['pred_result']).mean()
+
+print("\nChunk size: 150")  # This is just a label to match your images
+print("*** Overall Performance ***")
+print(f"\nprecision  recall  f1-score  support")
+
+# Calculate metrics per document type
+for doc_type in doc_types:
+    mask = (valid_results['actual_label'] == doc_type)
+    if mask.sum() > 0:
+        precision, recall, f1, support = precision_recall_fscore_support(
+            (valid_results['actual_label'] == doc_type), 
+            (valid_results['predicted_label'] == doc_type), 
+            average='binary', pos_label=True
+        )
+        print(f"{doc_type:<15} {precision:.2f}   {recall:.2f}   {f1:.2f}   {support}")
+
+print(f"\naccuracy{'':<13} {doc_type_accuracy:.2f}   {len(valid_results)}")
