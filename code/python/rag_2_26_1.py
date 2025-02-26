@@ -189,3 +189,194 @@ async def process_documents():
 # This needs to be executed in an async environment
 # Example usage:
 # await process_documents()
+
+
+
+import pandas as pd
+import numpy as np
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score, classification_report
+
+# Load the classification results
+results_df = pd.read_csv("document_classification_results.csv")
+
+# Filter out rows with errors or missing values
+valid_results = results_df.dropna(subset=['predicted_label', 'actual_label', 'predicted_first_page', 'actual_first_page'])
+valid_results = valid_results[valid_results['predicted_label'] != 'ERROR']
+
+print(f"Analyzing {len(valid_results)} valid results out of {len(results_df)} total")
+
+# Create detailed performance reports
+print("\n" + "*" * 40)
+print("Document Classification Performance Metrics")
+print("*" * 40)
+
+# Calculate metrics for the combined classification (doc_type + first_page)
+combined_actual = valid_results.apply(lambda row: f"{row['actual_label']}:{row['actual_first_page']}", axis=1)
+combined_pred = valid_results.apply(lambda row: f"{row['predicted_label']}:{row['predicted_first_page']}", axis=1)
+
+# Get detailed metrics for the combined results
+precision, recall, f1, support = precision_recall_fscore_support(
+    combined_actual, combined_pred, average=None, labels=sorted(combined_actual.unique())
+)
+accuracy = accuracy_score(combined_actual, combined_pred)
+
+# Create a combined performance DataFrame
+combined_perf = pd.DataFrame({
+    'precision': precision,
+    'recall': recall,
+    'f1-score': f1,
+    'support': support
+}, index=sorted(combined_actual.unique()))
+
+# Calculate average metrics
+macro_avg = combined_perf[['precision', 'recall', 'f1-score']].mean()
+weighted_avg = np.average(
+    combined_perf[['precision', 'recall', 'f1-score']].values, 
+    weights=combined_perf['support'].values, 
+    axis=0
+)
+
+# Print combined performance metrics
+print("\nCombined Classification (Document Type + First Page):")
+print(combined_perf)
+print("-" * 70)
+print(f"accuracy: {accuracy:.2f}")
+print(f"macro avg: {macro_avg['precision']:.2f} {macro_avg['recall']:.2f} {macro_avg['f1-score']:.2f}")
+print(f"weighted avg: {weighted_avg[0]:.2f} {weighted_avg[1]:.2f} {weighted_avg[2]:.2f}")
+
+# ------------------- Document Type Performance ----------------------
+print("\n" + "*" * 40)
+print("Label Performance")
+print("*" * 40)
+
+# Get detailed metrics for document types
+precision, recall, f1, support = precision_recall_fscore_support(
+    valid_results['actual_label'], valid_results['predicted_label'], average=None, 
+    labels=sorted(valid_results['actual_label'].unique())
+)
+accuracy = accuracy_score(valid_results['actual_label'], valid_results['predicted_label'])
+
+# Create a document type performance DataFrame
+label_perf = pd.DataFrame({
+    'precision': precision,
+    'recall': recall,
+    'f1-score': f1,
+    'support': support
+}, index=sorted(valid_results['actual_label'].unique()))
+
+# Calculate average metrics
+macro_avg = label_perf[['precision', 'recall', 'f1-score']].mean()
+weighted_avg = np.average(
+    label_perf[['precision', 'recall', 'f1-score']].values, 
+    weights=label_perf['support'].values, 
+    axis=0
+)
+
+# Print document type performance metrics
+print("\nDocument Type Classification:")
+print(label_perf)
+print("-" * 70)
+print(f"accuracy: {accuracy:.2f}")
+print(f"macro avg: {macro_avg['precision']:.2f} {macro_avg['recall']:.2f} {macro_avg['f1-score']:.2f}")
+print(f"weighted avg: {weighted_avg[0]:.2f} {weighted_avg[1]:.2f} {weighted_avg[2]:.2f}")
+
+# ------------------- First Page Performance ----------------------
+print("\n" + "*" * 40)
+print("First Page Performance")
+print("*" * 40)
+
+# Get detailed metrics for first page classification
+precision, recall, f1, support = precision_recall_fscore_support(
+    valid_results['actual_first_page'], valid_results['predicted_first_page'], average=None, 
+    labels=[False, True]  # Ensure consistent ordering
+)
+accuracy = accuracy_score(valid_results['actual_first_page'], valid_results['predicted_first_page'])
+
+# Create a first page performance DataFrame
+first_page_perf = pd.DataFrame({
+    'precision': precision,
+    'recall': recall,
+    'f1-score': f1,
+    'support': support
+}, index=[False, True])
+
+# Calculate average metrics
+macro_avg = first_page_perf[['precision', 'recall', 'f1-score']].mean()
+weighted_avg = np.average(
+    first_page_perf[['precision', 'recall', 'f1-score']].values, 
+    weights=first_page_perf['support'].values, 
+    axis=0
+)
+
+# Print first page performance metrics
+print("\nFirst Page Classification:")
+print(first_page_perf)
+print("-" * 70)
+print(f"accuracy: {accuracy:.2f}")
+print(f"macro avg: {macro_avg['precision']:.2f} {macro_avg['recall']:.2f} {macro_avg['f1-score']:.2f}")
+print(f"weighted avg: {weighted_avg[0]:.2f} {weighted_avg[1]:.2f} {weighted_avg[2]:.2f}")
+
+# ------------------- Doc Type + First Page Performance ----------------------
+print("\n" + "*" * 40)
+print("Document Type x First Page Performance")
+print("*" * 40)
+
+# Create combined doc_type:first_page values
+valid_results['actual_combined'] = valid_results.apply(
+    lambda row: f"{row['actual_label']}:{row['actual_first_page']}", axis=1
+)
+valid_results['predicted_combined'] = valid_results.apply(
+    lambda row: f"{row['predicted_label']}:{row['predicted_first_page']}", axis=1
+)
+
+# Get metrics for each document type + first page combination
+for doc_type in sorted(valid_results['actual_label'].unique()):
+    print(f"\n--- {doc_type} Performance ---")
+    
+    # Get rows for this document type
+    doc_type_results = valid_results[valid_results['actual_label'] == doc_type]
+    
+    # Get metrics for each first page value
+    for is_first_page in [False, True]:
+        # Results for this doc type + first page combination
+        combined_label = f"{doc_type}:{is_first_page}"
+        
+        # Check if this combination exists in the dataset
+        if combined_label not in valid_results['actual_combined'].values:
+            continue
+            
+        actual = (valid_results['actual_combined'] == combined_label)
+        predicted = (valid_results['predicted_combined'] == combined_label)
+        
+        # Calculate precision, recall, and F1
+        support = actual.sum()
+        if predicted.sum() > 0:
+            precision = (actual & predicted).sum() / predicted.sum()
+        else:
+            precision = 0
+            
+        if support > 0:
+            recall = (actual & predicted).sum() / support
+        else:
+            recall = 0
+            
+        if precision + recall > 0:
+            f1 = 2 * precision * recall / (precision + recall)
+        else:
+            f1 = 0
+            
+        print(f"{doc_type}:{is_first_page:<5} {precision:.2f} {recall:.2f} {f1:.2f} {support}")
+
+# Report metrics for different chunk sizes (this part is more for illustration)
+print("\n" + "*" * 40)
+print("Chunk size: 150")
+print("*** Overall Performance ***")
+print(f"\nprecision  recall  f1-score  support")
+print(label_perf)
+
+print("\n" + "*" * 40)
+print("Chunk size: 300")  
+print("*** Overall Performance ***")
+print(f"\nprecision  recall  f1-score  support")
+# This would normally be calculated with a different chunk size, but we're using the same data
+print(label_perf)
