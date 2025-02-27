@@ -63,3 +63,13 @@ df = pd.DataFrame(data)
 output_file = os.path.join(doc_folder, "business_personal_signature_card_100_2.csv")
 df.to_csv(output_file, index=False)
 print(f"Saved results to {output_file}")
+
+
+
+Name: Extract the full name of the recipient (either an individual's name or a company name). If both exist, prioritize the company name.
+Street Address or PO Box: If a street address is available, extract it. If not, extract the PO Box.
+City: Extract the city name.
+State: Extract the two-letter state code.
+ZIP Code: Extract the ZIP code.
+Mail Code: Extract the mail code if it exists (often appears as "Mail Code" or a combination of letters and numbers).
+Business Group Name: Extract if available (commonly appears as "ATTN:" followed by a department or group).
