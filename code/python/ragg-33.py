@@ -190,3 +190,80 @@ IMPORTANT: You MUST respond ONLY with a JSON object in the following exact forma
 ### User Query ###
 {user_query}
 """
+
+async def combined_classification_rag(
+    user_query: str,
+    vector_db,
+    model_name: str,
+    model_params: dict,
+    top_k: int = 3
+) -> str:
+    """
+    1) Retrieves context from Chroma DB.
+    2) Constructs final prompt with CLASSIFIER_SYSTEM_PROMPT + context.
+    3) Calls the remote model for a combined classification result with JSON output.
+    """
+    # Step 1: Retrieve relevant chunks
+    context = rag_retrieve(user_query, vector_db, k=top_k)
+    
+    # Step 2: Build the user portion of the prompt
+    final_user_query = f"Document Text:\n{context}\n\nQuestion: {user_query}\nAnswer:"
+    
+    # Updated system prompt that enforces JSON output format
+    JSON_CLASSIFIER_SYSTEM_PROMPT = """
+    You are a document classification assistant. Given the retrieved document content, determine both:
+    1) The document type (Bank Statement, Paystub, W2, or Other).
+    2) Whether this is the first page of the document (True/False).
+
+    Use only the retrieved text to make your decision.
+
+    IMPORTANT: You MUST respond ONLY with a JSON object in the following exact format, with no additional text before or after:
+    {
+      "document_type": "Bank Statement|Paystub|W2|Other",
+      "is_first_page": true|false
+    }
+    """
+    
+    # Step 3: Call the model service API
+    # Force JSON output format using model parameters
+    enhanced_params = model_params.copy()
+    enhanced_params["response_format"] = {"type": "json_object"}
+    
+    result = await prompt_model(
+        query=final_user_query,
+        system_prompt=JSON_CLASSIFIER_SYSTEM_PROMPT,
+        model_name=model_name,
+        model_params=enhanced_params,
+        top_k=top_k
+    )
+    
+    # Extract the JSON content from the response
+    try:
+        if isinstance(result, dict) and 'choices' in result:
+            content = result['choices'][0]['message']['content']
+            
+            # Parse the content to ensure it's valid JSON
+            import json
+            parsed_json = json.loads(content)
+            
+            # Create a clean, minimal JSON with only the required fields
+            clean_json = {
+                "document_type": parsed_json.get("document_type", "Unknown"),
+                "is_first_page": parsed_json.get("is_first_page", False)
+            }
+            
+            # Return the clean JSON as a string
+            return json.dumps(clean_json)
+        else:
+            # Fallback for unexpected responses
+            return json.dumps({
+                "document_type": "Unknown",
+                "is_first_page": False
+            })
+    except Exception as e:
+        # Handle any parsing errors
+        print(f"Error parsing model response: {e}")
+        return json.dumps({
+            "document_type": "Error",
+            "is_first_page": False
+        })
