@@ -168,3 +168,25 @@ async def main():
 # Execute the main function
 import asyncio
 resultdf = asyncio.run(main())
+
+
+
+CLASSIFIER_SYSTEM_PROMPT = """
+You are a document classification assistant. Given the retrieved document content, determine both:
+1) The document type (Bank Statement, Paystub, W2, or Other).
+2) Whether this is the first page of the document (True/False).
+
+Use only the retrieved text to make your decision.
+
+IMPORTANT: You MUST respond ONLY with a JSON object in the following exact format, with no additional text before or after:
+{
+  "document_type": "Bank Statement|Paystub|W2|Other",
+  "is_first_page": true|false
+}
+
+### Retrieved Context ###
+{retrieved_chunks}
+
+### User Query ###
+{user_query}
+"""
