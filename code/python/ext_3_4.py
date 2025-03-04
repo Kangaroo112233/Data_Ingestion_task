@@ -33,3 +33,39 @@ print(f"Matching records: {matches} ({match_percentage:.2f}%)")
 
 # 5. To save the validation results
 df.to_excel('extraction_validation_results.xlsx', index=False)
+
+
+# For more specific validation of date-pattern reference IDs
+def validate_reference_format(extracted, expected):
+    # Basic equality check
+    if extracted == expected:
+        return True
+    
+    # If extracted is 'None' but expected is not empty
+    if extracted == 'None' and expected and expected != 'NaN':
+        return False
+    
+    # If extracted found something but expected is empty
+    if extracted != 'None' and (not expected or expected == 'NaN'):
+        return False
+    
+    # Special case: Check if the date portion matches even if other parts differ
+    # Example: Extract date portion (YYYYMMDD) from both and compare
+    if extracted != 'None' and expected:
+        # Extract date pattern from strings
+        import re
+        date_pattern = r'(\d{8})'  # Matches 8 consecutive digits (YYYYMMDD)
+        
+        extracted_date = re.search(date_pattern, extracted)
+        expected_date = re.search(date_pattern, expected)
+        
+        if extracted_date and expected_date:
+            return extracted_date.group(0) == expected_date.group(0)
+    
+    return False
+
+# Apply this more detailed validation
+df['is_format_match'] = df.apply(lambda row: 
+    validate_reference_format(row['extracted_references'], row['reference_number']),
+    axis=1
+)
