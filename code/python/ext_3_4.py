@@ -217,3 +217,84 @@ resultdf = asyncio.run(process_dataframe(testdf, vector_db, model_name, model_pa
 # Display updated DataFrame
 import ace_tools as tools
 tools.display_dataframe_to_user(name="Classified Documents", dataframe=resultdf)
+
+
+import pandas as pd
+import asyncio
+import json
+import time
+import aiohttp
+
+async def classify_document(row, vector_db, model_name, model_params, session, max_retries=3):
+    """
+    Processes a single row, calling the classification model with retries.
+    """
+    retries = 0
+    while retries < max_retries:
+        try:
+            # Make API request with error handling
+            async with session.post(
+                "YOUR_MODEL_API_ENDPOINT",  # Replace with actual API endpoint
+                json={"query": row["truncated_text"], "params": model_params}
+            ) as response:
+
+                if response.status == 500:
+                    print(f"Server Error for row {row.name}, retrying...")
+                    raise Exception("Internal Server Error")
+
+                if response.status != 200:
+                    print(f"Unexpected response {response.status} for row {row.name}, retrying...")
+                    raise Exception("Bad Response")
+
+                result = await response.json()
+
+                # Validate response format
+                if "choices" not in result or not result["choices"]:
+                    raise ValueError("Invalid API response format")
+
+                # Extract response content
+                raw_text = result["choices"][0]["message"]["content"]
+                classification_dict = json.loads(raw_text)
+
+                return classification_dict.get("document_label", "Unknown"), classification_dict.get("is_first_page", False)
+
+        except json.JSONDecodeError:
+            print(f"JSON decoding error for row {row.name}, retrying...")
+        except Exception as e:
+            print(f"Error processing row {row.name}: {e}, retrying...")
+
+        retries += 1
+        await asyncio.sleep(2 ** retries)  # Exponential backoff
+
+    print(f"Failed after {max_retries} retries for row {row.name}")
+    return "Unknown", False  # Default values if retries fail
+
+async def process_dataframe(testdf, vector_db, model_name, model_params):
+    """
+    Applies document classification to the entire testdf asynchronously with error handling.
+    """
+    async with aiohttp.ClientSession() as session:
+        tasks = [
+            classify_document(row, vector_db, model_name, model_params, session)
+            for _, row in testdf.iterrows()
+        ]
+        
+        results = await asyncio.gather(*tasks)
+
+    # Store results back into the DataFrame
+    testdf["document_label"], testdf["is_first_page"] = zip(*results)
+    return testdf
+
+# Define model parameters
+model_name = "Meta-Llama-3.3-70B-Instruct"
+model_params = {
+    "temperature": 0.2,
+    "top_p": 0.95
+}
+
+# Run classification on dataset
+resultdf = asyncio.run(process_dataframe(testdf, vector_db, model_name, model_params))
+
+# Display the classified DataFrame
+import ace_tools as tools
+tools.display_dataframe_to_user(name="Classified Documents", dataframe=resultdf)
