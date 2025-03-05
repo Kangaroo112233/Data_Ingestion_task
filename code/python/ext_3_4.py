@@ -146,3 +146,43 @@ resultdf = asyncio.run(process_dataframe(testdf, vector_db, model_name, model_pa
 # Display updated DataFrame
 import ace_tools as tools
 tools.display_dataframe_to_user(name="Classified Documents", dataframe=resultdf)
+
+async def classify_document(row, vector_db, model_name, model_params, max_retries=3):
+    retries = 0
+    while retries < max_retries:
+        try:
+            result = await combined_classification_rag(
+                user_query=row["truncated_text"],
+                vector_db=vector_db,
+                model_name=model_name,
+                model_params=model_params,
+                top_k=3
+            )
+
+            # Debugging: Print raw API response
+            print(f"Row {row.name} - Raw API Response: {result}")
+
+            # Check if the result is a dictionary
+            if not isinstance(result, dict) or "choices" not in result:
+                raise ValueError("Invalid API response format")
+
+            # Extract response content
+            raw_text = result["choices"][0]["message"]["content"]
+
+            # Convert JSON string to dictionary
+            classification_dict = json.loads(raw_text)
+
+            return classification_dict.get("document_label", "Unknown"), classification_dict.get("is_first_page", False)
+
+        except json.JSONDecodeError:
+            print(f"Error decoding JSON for row {row.name}, retrying...")
+        except KeyError:
+            print(f"Unexpected API response structure for row {row.name}, retrying...")
+        except Exception as e:
+            print(f"Error processing row {row.name}: {e}, retrying...")
+
+        retries += 1
+        time.sleep(2 ** retries)  # Exponential backoff
+
+    print(f"Failed after {max_retries} retries for row {row.name}")
+    return "Unknown", False  # Default values if retries fail
