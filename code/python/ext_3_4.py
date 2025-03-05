@@ -186,3 +186,34 @@ async def classify_document(row, vector_db, model_name, model_params, max_retrie
 
     print(f"Failed after {max_retries} retries for row {row.name}")
     return "Unknown", False  # Default values if retries fail
+
+async def process_dataframe(testdf, vector_db, model_name, model_params):
+    """
+    Applies document classification to the entire testdf asynchronously.
+    Handles API failures and retry logic.
+    """
+    tasks = [
+        classify_document(row, vector_db, model_name, model_params)
+        for _, row in testdf.iterrows()
+    ]
+    
+    results = await asyncio.gather(*tasks)
+
+    # Store results back into the DataFrame
+    testdf["document_label"], testdf["is_first_page"] = zip(*results)
+
+    return testdf
+
+# Define model parameters
+model_name = "Meta-Llama-3.3-70B-Instruct"
+model_params = {
+    "temperature": 0.2,
+    "top_p": 0.95
+}
+
+# Run the classification over the entire DataFrame
+resultdf = asyncio.run(process_dataframe(testdf, vector_db, model_name, model_params))
+
+# Display updated DataFrame
+import ace_tools as tools
+tools.display_dataframe_to_user(name="Classified Documents", dataframe=resultdf)
