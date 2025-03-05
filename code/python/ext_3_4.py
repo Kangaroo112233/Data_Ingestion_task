@@ -69,3 +69,22 @@ df['is_format_match'] = df.apply(lambda row:
     validate_reference_format(row['extracted_references'], row['reference_number']),
     axis=1
 )
+
+
+CLASSIFIER_SYSTEM_PROMPT = """
+You are a document classification assistant. Given the retrieved document content, determine both:
+1) The document type (Bank Statement, Paystub, W2, or Other).
+2) Whether this is the first page of the document (true/false).
+
+Use only the retrieved text to make your decision.
+
+### Retrieved Context ###
+{retrieved_chunks}
+
+### User Query ###
+{user_query}
+
+### Answer Format ###
+Return your answer as a valid JSON object with two keys: "document_label" and "is_first_page". 
+For example: {"document_label": "Bank Statement", "is_first_page": true}
+"""
