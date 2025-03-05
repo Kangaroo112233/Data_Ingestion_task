@@ -88,3 +88,61 @@ Use only the retrieved text to make your decision.
 Return your answer as a valid JSON object with two keys: "document_label" and "is_first_page". 
 For example: {"document_label": "Bank Statement", "is_first_page": true}
 """
+import pandas as pd
+import asyncio
+import json
+
+async def classify_document(row, vector_db, model_name, model_params):
+    """
+    Processes a single row by calling the combined classification model
+    and extracting the document label and first-page classification.
+    """
+    try:
+        result = await combined_classification_rag(
+            user_query=row["truncated_text"],
+            vector_db=vector_db,
+            model_name=model_name,
+            model_params=model_params,
+            top_k=3
+        )
+
+        # Extract the response JSON from the model
+        raw_text = result["choices"][0]["message"]["content"]
+        classification_dict = json.loads(raw_text)
+
+        return classification_dict["document_label"], classification_dict["is_first_page"]
+
+    except Exception as e:
+        print(f"Error processing row {row.name}: {e}")
+        return None, None  # Return None values in case of error
+
+async def process_dataframe(testdf, vector_db, model_name, model_params):
+    """
+    Applies document classification to the entire testdf asynchronously
+    and returns the updated DataFrame with new columns.
+    """
+    tasks = [
+        classify_document(row, vector_db, model_name, model_params)
+        for _, row in testdf.iterrows()
+    ]
+    
+    results = await asyncio.gather(*tasks)
+
+    # Store results back into the DataFrame
+    testdf["document_label"], testdf["is_first_page"] = zip(*results)
+
+    return testdf
+
+# Define model parameters
+model_name = "Meta-Llama-3.3-70B-Instruct"
+model_params = {
+    "temperature": 0.2,
+    "top_p": 0.95
+}
+
+# Run the classification over the entire DataFrame
+resultdf = asyncio.run(process_dataframe(testdf, vector_db, model_name, model_params))
+
+# Display updated DataFrame
+import ace_tools as tools
+tools.display_dataframe_to_user(name="Classified Documents", dataframe=resultdf)
