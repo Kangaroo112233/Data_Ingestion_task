@@ -207,3 +207,28 @@ if __name__ == "__main__":
         device
     )
 """
+
+
+
+class CombinedDataset(Dataset):
+    def __init__(self, texts, doc_labels, is_first_page, embedder):
+        self.texts = texts
+        self.doc_labels = doc_labels
+        self.is_first_page = is_first_page
+        self.embedder = embedder
+        
+        print("Computing embeddings for dataset...")
+        self.embeddings = self.embed_texts(self.texts)
+        
+        # Add length checking
+        assert len(self.embeddings) == len(self.doc_labels) == len(self.is_first_page), \
+               f"Length mismatch: embeddings {len(self.embeddings)}, doc_labels {len(self.doc_labels)}, is_first_page {len(self.is_first_page)}"
+    
+    def __len__(self):
+        return len(self.embeddings)
+    
+    def __getitem__(self, idx):
+        # Add bounds checking
+        if idx >= len(self.embeddings) or idx >= len(self.doc_labels) or idx >= len(self.is_first_page):
+            raise IndexError(f"Index {idx} out of bounds for dataset with {len(self.embeddings)} elements")
+        return self.embeddings[idx], self.doc_labels[idx], self.is_first_page[idx]
