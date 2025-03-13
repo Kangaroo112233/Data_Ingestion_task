@@ -407,3 +407,20 @@ def combined_metrics_example():
     print("-" * 50 + "\n")
     
     return resdf
+
+
+# Create DataFrame with basic results
+resdf = test_df[['fn', 'label', 'first_pg']]
+resdf['pred_label'] = pred_label_l
+resdf['pred_first_pg'] = pred_first_pg_l
+print(resdf.head())
+
+# Create combined columns
+resdf['actual_result'] = resdf['label'].astype(str) + ':' + resdf['first_pg'].astype(str)
+resdf['pred_result'] = resdf['pred_label'].astype(str) + ':' + resdf['pred_first_pg'].astype(str)
+print(resdf.head())
+
+# Print classification report
+print("***Classification Performance ***")
+print("\nClassification report:")
+print(classification_report(resdf['actual_result'], resdf['pred_result']))
