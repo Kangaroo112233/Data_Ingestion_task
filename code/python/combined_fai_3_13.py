@@ -232,3 +232,19 @@ class CombinedDataset(Dataset):
         if idx >= len(self.embeddings) or idx >= len(self.doc_labels) or idx >= len(self.is_first_page):
             raise IndexError(f"Index {idx} out of bounds for dataset with {len(self.embeddings)} elements")
         return self.embeddings[idx], self.doc_labels[idx], self.is_first_page[idx]
+
+# Before creating the dataset, limit all arrays to the length of the shortest one
+min_length = min(len(texts), len(doc_labels), len(is_first_page))
+texts = texts[:min_length]
+doc_labels = doc_labels[:min_length]
+is_first_page = is_first_page[:min_length]
+
+test_dataset = CombinedDataset(texts, doc_labels, is_first_page, embedder)
+
+# Check if there's an issue in how doc_labels is being created
+print(f"Original texts length: {len(texts)}")
+print(f"Original doc_labels length: {len(doc_labels)}")
+print(f"Original is_first_page length: {len(is_first_page)}")
+
+# Make sure doc_labels is created from the same source as the other arrays
+doc_labels = [label_to_idx[label] for label in df['label'].tolist()]
