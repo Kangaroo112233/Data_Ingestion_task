@@ -248,3 +248,162 @@ print(f"Original is_first_page length: {len(is_first_page)}")
 
 # Make sure doc_labels is created from the same source as the other arrays
 doc_labels = [label_to_idx[label] for label in df['label'].tolist()]
+
+
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+class CombinedDataset(Dataset):
+    def __init__(self, texts, doc_labels, is_first_page, embedder):
+        self.texts = texts
+        self.doc_labels = doc_labels
+        self.is_first_page = is_first_page
+        self.embedder = embedder
+        print("Computing embeddings for dataset...")
+        self.embeddings = self.embed_texts(self.texts)
+    
+    def embed_texts(self, texts):
+        # Compute embeddings and return as tensor
+        embeddings = self.embedder.encode(texts, convert_to_tensor=True, show_progress_bar=True)
+        return embeddings
+    
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        return self.embeddings[idx], self.doc_labels[idx], self.is_first_page[idx]
+
+def evaluate_combined_metrics_pandas(doc_classifier, fp_classifier, dataloader, device, test_df, idx_to_label):
+    """
+    Evaluate combined document type and first page metrics using pandas DataFrame
+    
+    Args:
+        doc_classifier: Document type classifier model
+        fp_classifier: First page classifier model
+        dataloader: DataLoader with combined dataset
+        device: Device to run models on (cuda/cpu)
+        test_df: DataFrame containing test data with at least 'fn', 'label', 'first_pg' columns
+        idx_to_label: Dictionary mapping indices to label names
+        
+    Returns:
+        DataFrame with results and combined metrics
+    """
+    doc_classifier.eval()
+    fp_classifier.eval()
+    
+    all_doc_preds = []
+    all_doc_labels = []
+    all_fp_preds = []
+    all_fp_labels = []
+    
+    with torch.no_grad():
+        for embeddings, doc_labels, fp_labels in dataloader:
+            embeddings = embeddings.to(device)
+            doc_labels = doc_labels.to(device)
+            fp_labels = fp_labels.to(device)
+            
+            # Document type predictions
+            doc_outputs = doc_classifier(embeddings)
+            doc_preds = torch.argmax(doc_outputs, dim=1)
+            
+            # First page predictions
+            fp_outputs = fp_classifier(embeddings)
+            fp_preds = torch.argmax(fp_outputs, dim=1)
+            
+            all_doc_preds.extend(doc_preds.cpu().numpy())
+            all_doc_labels.extend(doc_labels.cpu().numpy())
+            all_fp_preds.extend(fp_preds.cpu().numpy())
+            all_fp_labels.extend(fp_labels.cpu().numpy())
+    
+    # Convert indices to labels
+    doc_pred_labels = [idx_to_label[idx] for idx in all_doc_preds]
+    
+    # Create a results DataFrame
+    results_df = test_df[['fn', 'label', 'first_pg']].copy()
+    results_df['pred_label'] = doc_pred_labels
+    results_df['pred_first_pg'] = all_fp_preds
+    
+    # Convert boolean/integer to string for consistency
+    results_df['first_pg'] = results_df['first_pg'].astype(bool).astype(str)
+    results_df['pred_first_pg'] = results_df['pred_first_pg'].astype(bool).astype(str)
+    
+    # Create combined actual and predicted results
+    results_df['actual_result'] = results_df['label'] + ':' + results_df['first_pg']
+    results_df['pred_result'] = results_df['pred_label'] + ':' + results_df['pred_first_pg']
+    
+    # Display the head for verification
+    print(results_df.head())
+    
+    # Print classification report
+    print("\n***Classification Performance ***")
+    print("\nClassification report:")
+    report = classification_report(results_df['actual_result'], results_df['pred_result'])
+    print(report)
+    print("-" * 50 + "\n")
+    
+    return results_df
+
+# Version that directly uses existing predictions
+def evaluate_combined_metrics_from_predictions(test_df, pred_label_col, pred_first_pg_col):
+    """
+    Calculate combined metrics using a DataFrame with predictions already made
+    
+    Args:
+        test_df: DataFrame with at least columns 'label', 'first_pg', pred_label_col, and pred_first_pg_col
+        pred_label_col: Column name containing document label predictions
+        pred_first_pg_col: Column name containing first page predictions
+        
+    Returns:
+        DataFrame with combined metrics
+    """
+    # Make a copy to avoid modifying the original
+    results_df = test_df.copy()
+    
+    # Convert boolean/integer to string for consistency
+    results_df['first_pg'] = results_df['first_pg'].astype(bool).astype(str)
+    results_df[pred_first_pg_col] = results_df[pred_first_pg_col].astype(bool).astype(str)
+    
+    # Create combined actual and predicted results
+    results_df['actual_result'] = results_df['label'] + ':' + results_df['first_pg']
+    results_df['pred_result'] = results_df[pred_label_col] + ':' + results_df[pred_first_pg_col]
+    
+    # Display the head for verification
+    print(results_df.head())
+    
+    # Print classification report
+    print("\n***Classification Performance ***")
+    print("\nClassification report:")
+    report = classification_report(results_df['actual_result'], results_df['pred_result'])
+    print(report)
+    print("-" * 50 + "\n")
+    
+    return results_df
+
+# Example of how to implement exactly what's shown in the images:
+def combined_metrics_example():
+    """Example code matching what's shown in the uploaded images"""
+    # Step 1: Create a results DataFrame with basic columns
+    # This assumes you already have test_df, pred_label_l and pred_first_pg_l variables
+    
+    # This is what's in Image 1, lines 1-5:
+    resdf = test_df[['fn', 'label', 'first_pg']]
+    resdf['pred_label'] = pred_label_l
+    resdf['pred_first_pg'] = pred_first_pg_l
+    print(resdf.head())
+    
+    # This is what's in Image 1, lines 58-59:
+    resdf['actual_result'] = resdf['label'].astype(str) + ':' + resdf['first_pg'].astype(str)
+    resdf['pred_result'] = resdf['pred_label'].astype(str) + ':' + resdf['pred_first_pg'].astype(str)
+    print(resdf.head())
+    
+    # This is what's in Image 3, lines 59-63:
+    print("***Classification Performance ***")
+    print("\nClassification report:")
+    print(classification_report(resdf['actual_result'], resdf['pred_result']))
+    print("-" * 50 + "\n")
+    
+    return resdf
