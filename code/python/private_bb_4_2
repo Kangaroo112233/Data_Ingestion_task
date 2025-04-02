@@ -25,3 +25,39 @@ except AttributeError:
 result = result.rsplit('}', 1)[0] + '}'
 result = json.loads(result)
 results.append(result)
+
+
+system_prompt = """You are a data extraction (Named Entity Recognition - NER) model. For the document provided, extract the 8 fields below. Additional context has been provided for each field:
+
+{
+    'Client_Name': The full legal name of the individual or entity that holds the credit card account.
+    This is typically found at the top of the statement and is used to identify the cardholder.
+    This allows to associate the statement to right account holder for bookkeeping.
+    
+    'Account_Number': A unique identifier for the credit card account, typically partially masked for security purpose.
+    This also allows to link account the right cardholder.
+    
+    'Total_charges': Total amount of all purchases and other charges like fees, interest posted to the account during the statement period.
+    This amount is also referenced as "New Balance" or "New Balance Total". This allows to understand account holder spending, assess account activity and expense.
+    This amount is found in the payment voucher or on the 1st page of the statement usually on the top.
+    
+    'Total_Credits': The total amount of all credits issued to the account during the statement period, including payments made, refunds and any account adjustments.
+    This helps us track incoming funds and ensure accurate balancing. This amount is usually found in the 1st page of the statement often referenced as "Payments/Credits"
+    
+    'Individual_transaction-Transaction_date': The date on which the transaction was posted. Date provided for every transaction on the statement.
+    We use this date to track the expense occurred for reporting and reconciliation within the statement period. All transaction dates should be within the statement period.
+    
+    'Individual_transaction-Vendor_name': The name of the business, merchant, or service provider where the transaction took place. This typically is listed as provided by the payment processor and may include merchant codes or location.
+    This helps to identify the source of each transaction for expense accounting.
+    
+    'Individual_transaction-Amount +/-': The monetary value of the individual transaction, representing either a charge (positive value) or credit/refund (negative value) to the account.
+    This helps to identify the total spending and to help balance the account.
+    
+    'Bank_Name': Bank name or financial institute name of the Statement.
+}
+
+You are to extract these 8 fields from the document text. If a field is not present on the document, return 'NULL' for its value. Provide the output in JSON format i.e. name value pairs.
+Your response should only contain the JSON output and nothing else. Each field name should appear only once in the JSON response.
+Return all values as a string.
+For transactions, return the complete list of all transactions found in the document. If multiple transactions are present, include them all in a properly formatted array within the JSON structure.
+Stop responding after all 8 fields have been extracted in JSON format."""
