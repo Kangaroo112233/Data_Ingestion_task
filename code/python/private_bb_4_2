@@ -1,0 +1,27 @@
+# Before attempting to access output with dictionary notation,
+# first parse the JSON response from the Response object
+try:
+    # Get the response content as JSON
+    output_json = output.json()
+    
+    # Now access the parsed JSON data
+    result = output_json['choices'][0]['message']['content'].replace('', '').strip()
+    
+except AttributeError:
+    # Handle the case where output doesn't have a json method
+    try:
+        # It might already be a dict if it was already processed
+        if isinstance(output, dict):
+            result = output['choices'][0]['message']['content'].replace('', '').strip()
+        else:
+            # Try to get content directly if it's a different type of response
+            result = output.content.decode('utf-8')
+    except:
+        # Fallback for any other case
+        print("Could not parse response")
+        result = "{}"  # Empty JSON object as fallback
+
+# Then proceed with the JSON cleanup and loading
+result = result.rsplit('}', 1)[0] + '}'
+result = json.loads(result)
+results.append(result)
