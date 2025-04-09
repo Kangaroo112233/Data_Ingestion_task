@@ -11,3 +11,28 @@ The test suite will encompass diverse name variations including alternative spel
 For item 11 (Error Analysis):
 Our classifier model demonstrates effective performance when identifying document categories with distinctive content signatures, where textual elements clearly differentiate document types (such as death certificates, signature cards, electronic communications, and legal agreements). The system encounters difficulties distinguishing between document categories with overlapping textual characteristics, notably confusing instructional correspondence with standard letters and administrative communications.
 First-page identification accuracy diminishes considerably for subsequent pages due to textual similarity patterns. Certain document formats, including signature cards and instructional letters, feature heading elements on every page, resulting in misclassification of subsequent pages as document beginnings.
+
+
+3. Calibration and Use of Model Confidence Score (Simplified)
+The model gives a confidence score that shows how sure it is about the label or extracted data. For classification tasks, this score comes from the probability it assigns to each possible label, with the highest one usually chosen. This probability is calculated using a softmax function.
+
+For extraction tasks, the model uses its understanding of the document structure and context to assign confidence scores to each piece of extracted text. We apply a method called logarithmic softmax to convert model predictions into confidence values for each key field.
+
+We also use calibration techniques to adjust these confidence values so they more closely reflect the model’s actual reasoning during extraction, helping to ensure the results are accurate and reliable.
+
+5. Data Quality Testing (Simplified)
+We run regular checks on incoming data to ensure it meets expected quality standards. These checks look for things like poor OCR quality, unusual data patterns, changes in document format, and unexpected text changes.
+
+We also perform routine audits on the data the model processes, making sure everything stays aligned with what the model expects. This helps us catch problems early and keep performance consistent over time.
+
+10. Data Extraction Integrity (Simplified)
+We plan to do more extensive testing with a larger and more varied set of documents. This will help us measure how confident the model is and how often errors occur when extracting data.
+
+We’ll test names with different spellings, accents, hyphens, abbreviations, and rare formats. We’ll also test numeric fields to make sure the model extracts all variations correctly and consistently. This will give us a clearer picture of how reliable the model is in different situations.
+
+11. Error Analysis (Simplified)
+The model does a good job identifying document types that have unique, clearly defined content, like death certificates or trust agreements. But it sometimes struggles with documents that look similar—such as letters and instructions—because they share a lot of common text.
+
+It also has trouble figuring out if a page is the first page of a document, especially when the layout looks the same across all pages.
+
+In terms of extraction, the model works well when document quality is high, with clear images and easy-to-read text. But poor image quality or complex layouts can confuse it. This might lead to errors like blank outputs, incorrect field values, or picking up the wrong information.
