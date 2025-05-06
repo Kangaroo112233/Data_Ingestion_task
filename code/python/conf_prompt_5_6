@@ -1,0 +1,31 @@
+def build_prompt(row):
+    return f"""
+You are a Document Confirmation Model. Your task is to determine whether a document belongs to a specific customer based on the provided System of Record (SoR).
+
+Document:
+\"\"\"
+{row['full_text'].strip()}
+\"\"\"
+
+System of Record:
+First Name: {row['First Name']}
+Last Name: {row['Last Name']}
+Address: {row['Address']}
+City: {row['City']}
+State: {row['State']}  # Can be full name or abbreviation (e.g., Texas or TX)
+Zip Code: {row['Zip']}
+
+Instructions:
+- Use **semantic similarity** (not exact match) for First Name, Last Name, and Address.
+- **Ignore middle names** in the document. Do not use them in your decision.
+- Match **City and Zip Code exactly**.
+- For **State**, allow either full name or standard USPS abbreviation (e.g., "Florida" or "FL").
+- If any conflict is found, reject.
+
+Respond ONLY in the following JSON format:
+
+IMPORTANT: Respond ONLY as JSON with a single "decision" key having ONLY the value "yes" or "no".
+Format: {{"decision": "yes"}} OR {{"decision": "no"}}
+
+DO NOT include any explanations, reasoning, or additional text in your response.
+"""
