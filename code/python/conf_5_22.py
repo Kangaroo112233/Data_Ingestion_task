@@ -101,3 +101,41 @@ After your analysis, provide your decision in this JSON format:
   "matching_elements": ["list what matched"],
   "non_matching_elements": ["list what didn't match"]
 }
+
+
+# version: 5
+def build_prompt(row):
+    return f"""
+You are a Document Confirmation Model. Your task is to determine whether a document belongs to a specific customer based on the provided System of Record (SoR).
+
+Document:
+\"\"\"
+{row['full_text'].strip()}
+\"\"\"
+
+System of Record:
+First Name: {row['First Name']}
+Last Name: {row['Last Name']}
+Mailing Address Line 1: {row['Address']}
+
+Instructions:
+- Use semantic similarity (not exact matching).
+- Accept partial matches, abbreviations, and name variants as valid.
+  - Examples: "Robert" = "Rob", "Street" = "St", "123 Main Street" = "123 Main St"
+- Ignore middle names if present in the document.
+
+Return confirmation as YES, if:
+- First Name AND Last Name both match (exact or partial)
+OR
+- Mailing Address Line 1 matches (exact or partial)
+
+Otherwise, return NO.
+
+Respond ONLY in the following JSON format:
+
+IMPORTANT: Respond ONLY with a JSON having a single "decision" key with ONLY the value "yes" or "no".
+
+Format: {{"decision": "yes"}} OR {{"decision": "no"}}
+
+DO NOT include any explanations, reasoning, or additional text in your response.
+"""
