@@ -1,0 +1,19 @@
+Inconsistencies in CSV column names (e.g., document_name, label, doc_type, doc_type2, document_type, etc.) cause friction when sharing files across teammates.
+
+To streamline data‐processing scripts, the team agreed to adopt a small, standardized set of column names across all projects. Examples:
+
+file_name (abbreviated as fn)
+
+document_text (abbreviated as text)
+
+true_label (as opposed to label or document_name)
+
+predicted_label
+
+doc_tuple (the 8‐digit “document tuple” identifier used historically in ESO projects)
+
+Explanation of doc_tuple: In earlier ESO classification work (2019–2020), each document (e.g., Bank Statement, W2, Pay Stub, etc.) was assigned an 8‐digit doc_tuple code. Although recent pipelines have shifted to using long names (e.g., “BankStatement”), downstream systems (e.g., Instabase, depository databases) still rely on doc_tuple.
+
+To avoid confusion, upstream pipelines will include both the doc_tuple and document_name (where applicable) in the output CSV.
+
+By agreeing on a small set of column names (≈7–10 columns), data‐consumers and code can remain consistent and minimize ad‐hoc mapping/cleaning.
