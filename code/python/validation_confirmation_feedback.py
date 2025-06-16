@@ -86,4 +86,51 @@ Doesn’t belong: the model correctly rejected 96 % of true-no cases.
 
 Next steps: in our ICM dashboard we will also break these metrics out by incoming document type (e.g. Income, Statement, W2, Death Cert, Signature Card), so we can detect drift per segment.
 
-  
+  ┌───────────────┐    ┌───────────────┐    ┌─────────────────────────┐    ┌──────────────┐
+│ Document      │ →  │ Classification│ →  │ Data Extraction        │ →  │ Validation   │
+│ Ingestion     │    │ (type-label)  │    │ (field values)         │    │ Confirmation │ 
+└───────────────┘    └───────────────┘    └─────────────────────────┘    └──────┬───────┘
+                                                                          Yes │ No
+                                                                              ▼ 
+                                                                          Manual
+                                                                          Indexer
+
+
+
+
+  Validation Confirmation Model
+
+Purpose: As the final step in our ESO pipeline, the validation confirmation model ensures that the extracted reference-number (or “key”) from a given document truly matches the authoritative record in our System of Record (SOR).
+
+Inputs:
+
+Split classification output (document type)
+
+Reference-number extraction (from data-extraction model)
+
+Process:
+
+Query the SOR using the extracted reference-number
+
+Compare the SOR-returned canonical fields (e.g. name, address) against the OCR-extracted values
+
+Compute a per-field confidence score and aggregate into an overall “validation” confidence
+
+Outputs:
+
+Validation = Yes (match above threshold)
+
+Validation = No (mismatch or low confidence)
+
+STP Yes/No Decision
+Once validation completes, we branch on the boolean outcome:
+
+Validation Result	Action
+Yes	• → Straight-Through Processing (STP)
+– Automatically route the document and its confirmed metadata into the downstream ingestion/indexing pipeline.
+– Mark record as STP-eligible in the audit log.
+No	• → Manual Review
+– Flag the document for a human-in-the-loop exception workflow.
+– Attach discrepancy details and confidence scores to the review ticket.
+
+
