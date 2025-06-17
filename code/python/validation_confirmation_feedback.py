@@ -133,4 +133,7 @@ No	• → Manual Review
 – Flag the document for a human-in-the-loop exception workflow.
 – Attach discrepancy details and confidence scores to the review ticket.
 
+ME = z₀.₉₇₅ × √[p(1−p)/n]
+   = 1.96 × √[(0.98 × 0.02)/172]
+   ≈ 0.03 (±3 %)
 
