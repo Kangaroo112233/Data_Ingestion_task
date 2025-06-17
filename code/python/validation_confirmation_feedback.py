@@ -137,3 +137,68 @@ ME = z₀.₉₇₅ × √[p(1−p)/n]
    = 1.96 × √[(0.98 × 0.02)/172]
    ≈ 0.03 (±3 %)
 
+4. Validation Confirmation Use Case (MU)
+Comment: “It is unclear if this step occurs independently of split classification & extraction or if it must follow in sequence. Please clarify dependencies in the diagram.”
+Our Response:
+
+The Validation-Confirmation (VC) step is always executed immediately after Split Classification and Data Extraction as the final check in our ESO pipeline. We have updated Figure 2 (page 9) to show the sequential dependency—Split Classification ➔ Data Extraction ➔ Validation Confirmation—and added a “Yes/No” branch from VC to either auto‐indexing (STP) or human review.
+
+7.1 Sample Size & Stratification (PT)
+Comment: “Please provide evidence that N = 172 for validation is sufficient, including margin of error, and plan for ongoing stratified monitoring.”
+Our Response:
+
+We used 172 held-out production documents to estimate zero-shot VC performance. At an observed accuracy of 0.98, the 95 % confidence-interval half-width (margin of error) is:
+
+ME
+=
+𝑧
+0.975
+ 
+𝑝
+(
+1
+−
+𝑝
+)
+𝑛
+=
+1.96
+×
+0.98
+×
+0.02
+172
+≈
+0.03
+(
+±
+3
+%
+)
+ME=z 
+0.975
+​
+  
+n
+p(1−p)
+​
+ 
+​
+ =1.96× 
+172
+0.98×0.02
+​
+ 
+​
+ ≈0.03(±3%)
+Thus, with 95 % confidence the true accuracy lies in [95 %, 100 %], which meets our STP-gating threshold. Going forward, we will re-sample at least 172 documents per quarter and report stratified metrics by “belongs/doesn’t belong” and by document type to satisfy ICM tracking requirements.
+
+10.1 Validation Confirmation Output Flags (Doc)
+Comment: “Add the ‘Yes/No’ validation outputs and downstream actions to the model workflow.”
+Our Response:
+
+We have inserted a new table in Section 10.1 that maps the VC decision to its action:
+
+Validation Result	Action
+Yes	• Straight-Through Processing (STP): auto-route confirmed documents into downstream ingestion; mark record as STP-eligible in audit logs.
+No	• Manual Review: flag for human-in-the-loop exception workflow; attach per-field discrepancy details and confidence scores to the review ticket.
