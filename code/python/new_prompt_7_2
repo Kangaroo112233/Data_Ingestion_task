@@ -1,0 +1,120 @@
+**You are a data extraction (Named Entity Recognition - NER) model. For the W2 document provided, extract the 24 fields below. Additional context has been provided for each field:**
+
+W2 year: W2 tax year; If multiple years found, return earliest year
+
+Employee’s name: Name of employee as it appears in the document; Found in box e
+
+Employee’s address: Employee’s full address that appears on the W2 as one text string (no line breaks). Do not insert commas at line breaks. Maintain spacing, but avoid artificial punctuation unless it exists in the document.
+
+Employee’s social security number: Employee's Social Security Number in the format XXX-XX-XXXX
+
+Employer’s name: Employer or company name as it appears in the document; Found in box c
+
+Employer’s address: Employer’s full address that appears on the W2 as one text string (no line breaks). Do not insert commas at line breaks. Maintain spacing, but avoid artificial punctuation unless it exists in the document.
+
+Employer’s federal employer identification number: Employer's Federal Employer Identification Number in the format XX-XXXXXXX
+
+Box 1 wages, tips, other comp.: Amount in box 1 - Wages, tips, and other compensation
+
+Box 2 income tax withheld: Amount in box 2 - Federal income tax withheld
+
+Box 3 social security wages: Amount in box 3 - Social security wages
+
+Box 4 social security tax withheld: Amount in box 4 - Social security tax withheld
+
+Box 5 Medicare wages and tips: Amount in box 5 - Medicare wages
+
+Box 6 Medicare tax withheld: Amount in box 6 - Medicare tax withheld
+
+Box 7 Social security tips: Amount in box 7 - Allocated tips
+
+Box 8 Allocated tips: Amount in box 8 - Allocated tips
+
+Box 12a Code: Letter code in box 12a; Allowed values: A-Z and ['AA', 'BB', 'DD', 'EE', 'FF', 'GG', 'HH']. Discard invalid codes like 'CI', 'DI', etc.
+
+Box 12a Amount: Amount code in box 12a
+
+Box 12b Code: Letter code in box 12b; Allowed values: A-Z and ['AA', 'BB', 'DD', 'EE', 'FF', 'GG', 'HH']. Discard invalid codes like 'CI', 'DI', etc.
+
+Box 12b Amount: Amount code in box 12b
+
+Box 12c Code: Letter code in box 12c; Allowed values: A-Z and ['AA', 'BB', 'DD', 'EE', 'FF', 'GG', 'HH']. Discard invalid codes like 'CI', 'DI', etc.
+
+Box 12c Amount: Amount code in box 12c
+
+Box 12d Code: Letter code in box 12d; Allowed values: A-Z and ['AA', 'BB', 'DD', 'EE', 'FF', 'GG', 'HH']. Discard invalid codes like 'CI', 'DI', etc.
+
+Box 12d Amount: Amount code in box 12d
+
+Box 14 Other information: Extract Box 14 only as a list/array; extract only the specific values in box 14 as **[“Description $Amount”]** string pairs. Do not join values with extra commas. Each item should be a separate element in the array. May contain various employer-specific information such as state disability insurance, union dues, uniform payments, etc. Do not include values from adjacent boxes like 13.
+
+Box 17 State income tax: Amount in box 17 - State income tax withheld from your paycheck
+
+---
+
+You are to extract these 24 fields from the document text. If a box is empty on the document, return `'NULL'` for its value. Do not return `"no"` or `""`.
+
+Your response should only contain the JSON output in pretty-print format and nothing else. Each field name should appear only once in the JSON response and every value should be a string.
+
+If multiple W2 forms exist, return the values of the **first W2**.
+
+Stop responding after all 24 fields have been extracted.
+import re
+
+def refine_fields(result):
+    """
+    Refines LLM output:
+    - Normalizes empty values
+    - Formats Box 14 correctly as pairs
+    - Cleans up addresses
+    - Removes invalid Box 12 codes
+    """
+    refined = {}
+    allowed_box12_codes = set(['A','B','C','D','E','F','G','H','AA','BB','DD','EE','FF','GG','HH'])
+
+    for key, val in result.items():
+        # Normalize empty values
+        if val in ["no", "No", "", '""', None]:
+            refined[key] = "NULL"
+            continue
+
+        # Format Box 14 values
+        if key.strip().lower().startswith("box 14"):
+            if isinstance(val, str):
+                val = [v.strip() for v in val.split(",") if v.strip()]
+            grouped = []
+            i = 0
+            while i < len(val) - 1:
+                desc, amt = val[i], val[i+1]
+                if re.match(r'^\$?\d+(\.\d{2})?$', amt):
+                    grouped.append(f"{desc} {amt}")
+                    i += 2
+                else:
+                    grouped.append(desc)
+                    i += 1
+            if i == len(val) - 1:
+                grouped.append(val[i])
+            refined[key] = grouped
+            continue
+
+        # Clean address fields: remove line-break commas
+        if "address" in key.lower() and isinstance(val, str):
+            refined[key] = re.sub(r",\s*\n", "\n", val).replace("\n", " ").strip()
+            continue
+
+        # Validate Box 12 codes
+        if "Box 12" in key and "Code" in key:
+            if val not in allowed_box12_codes:
+                refined[key] = "NULL"
+                continue
+
+        # Otherwise, return original
+        refined[key] = val
+    return refined
+
+result = parse_llm_response(response['response'])
+result = refine_fields(result)
+result = validate_fields(result, field_names)
+
+def cleanse(result):
+    return result.replace("$", "").replace(",", "").replace("'", "").replace("[", "").replace("]", "").replace("\\", "").upper().strip()
