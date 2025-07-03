@@ -118,3 +118,35 @@ result = validate_fields(result, field_names)
 
 def cleanse(result):
     return result.replace("$", "").replace(",", "").replace("'", "").replace("[", "").replace("]", "").replace("\\", "").upper().strip()
+
+
+# Define full mapping explicitly: from snake_case df.columns → prompt field_names_3
+column_mapping = {
+    'w2_year': "W2 year",
+    'employee_name': "Employee's name",
+    'employee_address': "Employee's address",
+    'employee_ssn': "Employee's social security number",
+    'employer_name': "Employer's name",
+    'employer_address': "Employer's address",
+    'employer_federal_ein': "Employer's federal employer identification number",
+    'box1_wages': "Box 1 wages, tips, other comp.",
+    'box2_fed_withhold': "Box 2 income tax withheld",
+    'box3_ss_wage': "Box 3 social security wages",
+    'box4_ss_withholding': "Box 4 social security tax withheld",
+    'box5_medicare_wages': "Box 5 Medicare wages and tips",
+    'box6_medicare_withholding': "Box 6 Medicare tax withheld",
+    'box7_social_security_tips': "Box 7 Social security tips",
+    'box8_allocated_tips': "Box 8 Allocated tips",
+    'box12a_code': "Box 12a Code",
+    'box12a_amount': "Box 12a Amount",
+    'box12b_code': "Box 12b Code",
+    'box12b_amount': "Box 12b Amount",
+    'box12c_code': "Box 12c Code",
+    'box12c_amount': "Box 12c Amount",
+    'box12d_code': "Box 12d Code",
+    'box12d_amount': "Box 12d Amount",
+    'box14_description': "Box 14 Other information",
+    'box17_state_tax': "Box 17 State income tax"
+}
+test_df = df.copy()
+test_df.rename(columns=column_mapping, inplace=True)
