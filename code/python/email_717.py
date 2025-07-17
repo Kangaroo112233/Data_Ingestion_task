@@ -1,4 +1,4 @@
-Hi Aftab,
+
 
 Following our recent UAT evaluation of the W2 extraction model, I have reviewed field-level performance across all key data points. Based on this, I’ve computed a statistically justified sample size to guide future testing efforts and align with MRM requirements.
 
