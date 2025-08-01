@@ -20,3 +20,26 @@ df1_with_text["num_tokens"] = (
                            truncation=False)
     ))
 )
+
+
+
+import pandas as pd
+
+# 1) rename to df3’s schema
+df1_with_text = df1_with_text.rename(columns={
+    "billingCycleDate":         "statement_end_date",
+    "paymentDueDate":           "due_date",
+    "billingRecipientAddress":  "billing_recipient_address",
+    "vendorAddress":            "vendor_address",
+    "vendorName":               "vendor_name",
+    "paymentAmount":            "payment_amount"
+})
+
+# 2) reorder to exactly df3’s columns
+df1_with_text = df1_with_text[df3.columns]
+
+# 3) stitch them together
+df_full = pd.concat([df3, df1_with_text], ignore_index=True)
+
+# check
+print(df_full.shape)    # (148, 18)
