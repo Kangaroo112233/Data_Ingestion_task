@@ -242,3 +242,6 @@ Section 9 comment: “Added Nov results with ‘existing/new’ tags and Aug bas
 
 Section 10.4 comment: “Included delta table and key takeaways; please review total_charges regression.”
 
+
+
+Release scope note: In the Aug release we extracted 4 fields + 1 transactions table (existing fields). In the Nov release we expanded scope by 6 additional fields, so we now extract 10 fields + 1 transactions table.”
