@@ -1,0 +1,244 @@
+Section 9
+Extraction model — Data details
+
+Overview.
+We evaluate a zero-shot data extraction approach (no fine-tuning) using structured prompts for Private Banking Statements (PBST). The model extracts 10 fields and 1 transactions table per document.
+
+9.1 Dataset summary
+SN	Model (use case) name	Annotated test dataset size	Each annotated example consists of	Period
+1	Statements – (Private Banking Statements – PBST) Extraction	136	10 annotated fields + 1 annotated transactions table	Jul–Dec 2024
+
+Annotation process.
+Annotations were produced by the DIIVO team using two independent annotators per sample. Disagreements (<5%) were adjudicated by a senior reviewer.
+
+9.2 Sampling & sample-size justification
+
+To ensure statistically valid estimation of accuracy on production-like data while minimizing manual effort, we computed the minimum test size using the standard proportion sample-size formula:
+
+𝑛
+=
+𝑍
+2
+⋅
+𝑝
+⋅
+(
+1
+−
+𝑝
+)
+𝐸
+2
+n=
+E
+2
+Z
+2
+⋅p⋅(1−p)
+	​
+
+
+Where:
+
+𝑍
+=
+1.96
+Z=1.96 (95% confidence)
+
+𝐸
+=
+0.05
+E=0.05 (±5% margin of error)
+
+𝑝
+=
+0.9021
+p=0.9021 (baseline UAT accuracy estimate)
+
+Result: 
+𝑛
+≈
+135.84
+n≈135.84 → we use 136 statements.
+
+Assumptions. Samples are random with respect to layout/vendor mix; we stratified for issuer/layout diversity to mirror production. Field-level accuracy is measured on this test dataset (136 docs / 1360 field items). UAT runs on a production-channel distribution are used to verify generalization.
+
+9.3 Field extraction prompt (authoritative definitions)
+
+Objective. Extract the following 10 fields from each statement. Use the coupon area when present (takes priority) and return strings. If a field is not present, return "NULL".
+
+client_name: Full legal name of the individual or entity that holds the credit card account (typically at the top of the statement).
+
+account_number: Unique identifier for the credit card account; may be partially masked.
+
+total_charges: Total of all purchases and other charges (fees, interest) posted during the statement period. Commonly labeled “New Balance” or “New Balance Total” and often repeated on the first page and payment voucher. Include the dollar sign.
+
+total_credits: Total of all credits during the statement period (payments received, refunds, adjustments). Include dollar sign and any negative prefix if printed (e.g., “-$100.00” or “($100.00)”).
+
+statement_end_date: The date the billing cycle ends. If not present, use the current date; it must not be after the present date.
+
+due_date: The date payment must be received to avoid late fees. Use the earliest date that satisfies the bill’s requirement (often aligned to “closing date + grace”).
+
+billing_recipient_address: Postal address of the statement recipient. Extract street, city, state, ZIP (coupon block preferred if available).
+
+vendor_name: Name of the issuing institution or card brand (bank/service provider).
+
+vendor_address: Official remittance address of the issuing institution as printed on the statement (coupon block preferred if available).
+
+total_due: FINAL AMOUNT owed for the statement, including all charges/credits/taxes/discounts. Do not return minimum/partial amounts. Include the dollar sign and any negative prefix if printed.
+
+Output format (example)
+
+{
+  "client_name": "JOHN DOE",
+  "account_number": "XXXXXXXXXXXX0000",
+  "total_charges": "$0.00",
+  "total_credits": "$100.00",
+  "statement_end_date": "01-01-2024",
+  "due_date": "01-01-2023",
+  "billing_recipient_address": "1234 TEST DRIVE",
+  "vendor_name": "BANK OF AMERICA",
+  "vendor_address": "4321 TEST DRIVE",
+  "total_due": "$1,000.00"
+}
+
+9.4 Transactions table extraction prompt
+
+Columns to return (for every row in the statement’s transaction table):
+
+posted_date: Posting date of the line item (use posted date, not transaction date).
+
+transaction_vendor_name: Vendor/merchant name.
+
+transaction_amount: Dollar amount of the transaction.
+
+Output requirements.
+Extract all rows; ensure a consistent three-column schema; use "NULL" for missing cells; return only the table output.
+
+Tabular example (model output)
+
+| posted_date | transaction_vendor_name | transaction_amount |
+|-------------|-------------------------|--------------------|
+| 01/01       | Company 1               | $40.00             |
+| 01/02       | Company 2               | $60.00             |
+
+
+Parsed JSON example
+
+[
+  {"posted_date":"01/01","transaction_vendor_name":"Company 1","transaction_amount":"$40.00"},
+  {"posted_date":"01/02","transaction_vendor_name":"Company 2","transaction_amount":"$60.00"}
+]
+
+9.5 Inference parameters (Llama-3.3-70B-Instruct)
+
+top_p = 0.95
+
+temperature = 1e-3
+
+max_length = model_config.max_position_embeddings (fit to context)
+
+return_dict_in_generate = True, output_logits = True
+
+Standard inputs: input_ids, attention_mask, pad_token_id
+
+Rationale. Low temperature biases to the highest-probability token (deterministic extraction); top-p is retained as a safety valve but rarely used due to the prompt’s unambiguous targets.
+
+Submission ID (for traceability): <ADD_SUBMISSION_ID_HERE>
+
+Section 10
+Data Extraction models (Llama-3.3-70B)
+10.1 Nov 2025 release models
+SN	Model (use case) name	Model used	# of output fields	Test dataset size
+1	Statements (PBST) – Extraction	Llama-3.3 70B-Instruct	10 + 1 table	136
+
+Table: Nov 2025 release extraction model configuration.
+
+10.2 Fields extraction performance (test dataset, 136 documents)
+
+Rows are tagged as existing (present in Aug baseline) or new (added in Nov).
+
+sn	field name	scope	correct	support	accuracy %
+1	client_name	existing	134	136	98.529412
+2	account_number	existing	133	136	97.794118
+3	total_charges	existing	111	136	81.617647
+4	total_credits	existing	128	136	94.117647
+5	billing_recipient_address	new	131	136	96.323529
+6	due_date	new	134	136	98.529412
+7	statement_end_date	new	136	136	100.000000
+8	total_due	new	136	136	100.000000
+9	vendor_address	new	130	136	95.588235
+10	vendor_name	new	136	136	100.000000
+	Overall		1309	1360	96.250000
+
+transactions_tab: N/A (reported separately for qualitative validation).
+
+10.3 Baseline (Aug release) — existing fields only
+field name	correct	support	accuracy %
+client_name	85	99	85.86
+account_number	99	99	100.00
+total_charges	96	99	96.97
+total_credits	94	99	94.45
+Overall (existing fields)	374	396	94.67
+10.4 Change vs Aug (existing fields)
+field	Aug acc %	Nov acc %	Δ pp (Nov–Aug)
+client_name	85.86	98.53	+12.67
+account_number	100.00	97.79	–2.21
+total_charges	96.97	81.62	–15.35
+total_credits	94.45	94.12	–0.33
+Overall	94.67	96.25	+1.58
+
+Note: Your spoken note said total_charges improved; the current Nov test table shows 81.62%. If a corrected value exists, update Row 3 above and the bullet below accordingly.
+
+10.5 Takeaways
+
+Overall accuracy improved from 94.67% → 96.25% (+1.58 pp) with the addition of six new fields (three at 100%).
+
+Biggest improvement: client_name (+12.67 pp, now 98.53%).
+
+Stable: total_credits (~94%).
+
+Regression to investigate: total_charges (–15.35 pp).
+
+New fields strong: statement_end_date, total_due, and vendor_name at 100%; others ≥95.59%.
+
+10.6 Known issues & next steps
+
+total_charges
+
+Re-confirm label mapping: many issuers label “New Balance / New Balance Total” vs “Purchases/Charges.”
+
+Keep coupon precedence; if a coupon “Amount Due” is minimum payment, ensure it does not override total_charges.
+
+Add a negative test in calibration for statements that show both Current Balance and New Balance.
+
+Address fields
+
+Normalize multi-line blocks; enforce street, city, state, ZIP order.
+
+Dates
+
+Enforce YYYY-MM-DD or MM-DD-YYYY consistently in the post-processing shim; reject future statement_end_date.
+
+Transactions table
+
+Ensure we use posted_date consistently (not transaction_date) and keep exact three-column schema.
+
+10.7 Prompt & parameters (for reproducibility)
+
+Model: Llama-3.3-70B-Instruct
+
+Generation: top_p=0.95, temperature=1e-3, deterministic decoding; coupon region prioritized in the prompt; values returned as strings with currency signs and negative prefixes when present.
+
+Stop condition: after all 10 fields are produced (or "NULL" substitutions).
+
+Post-processing: trim whitespace, normalize currency/dates, enforce one value per field.
+
+Submission ID (for traceability): <ADD_SUBMISSION_ID_HERE>
+
+10.8 Reviewer navigation (add Word comments)
+
+Section 9 comment: “Added Nov results with ‘existing/new’ tags and Aug baseline for comparison. Submission ID: <ID>.”
+
+Section 10.4 comment: “Included delta table and key takeaways; please review total_charges regression.”
+
