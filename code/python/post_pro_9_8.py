@@ -71,3 +71,40 @@ def _date_sane(raw: Optional[str]) -> Optional[str]:
 
     # if no parse works, just return None
     return None
+
+def _ensure_negative_money(m: Optional[str]) -> Optional[str]:
+    """
+    For credits: ensure negative sign, except when value is exactly 0.
+    Example:
+      "$123.45"  -> "-$123.45"
+      "($123.45)" -> "-$123.45"
+      "-$123.45" -> "-$123.45"
+      "$0.00"    -> "$0.00"   (no negative sign)
+      "-$0.00"   -> "$0.00"
+    """
+    if m is None:
+        return None
+    s = str(m).strip()
+    if not s or s.upper() == "NULL":
+        return None
+
+    # Already negative?
+    if s.startswith("-") or (s.startswith("(") and s.endswith(")")):
+        # Check if it's zero
+        try:
+            amt = float(s.replace("$","").replace(",","").replace("(","").replace(")","").replace("-","").strip())
+        except ValueError:
+            return s
+        if amt == 0.0:
+            return "$0.00"
+        return s
+
+    # Not negative yet
+    try:
+        amt = float(s.replace("$","").replace(",","").strip())
+    except ValueError:
+        return s
+
+    if amt == 0.0:
+        return "$0.00"
+    return f"-{s}" if s.startswith("$") else f"-${amt:,.2f}"
