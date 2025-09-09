@@ -108,3 +108,17 @@ def _ensure_negative_money(m: Optional[str]) -> Optional[str]:
     if amt == 0.0:
         return "$0.00"
     return f"-{s}" if s.startswith("$") else f"-${amt:,.2f}"
+
+
+import pandas as pd
+
+# read your file (swap to read_csv if it's a CSV)
+df = pd.read_excel("predictions.xlsx")   # or: pd.read_csv("predictions.csv")
+
+# one row per file; columns are field names; values are ground_truth
+wide = (df[["fn", "field", "ground_truth"]]
+          .pivot_table(index="fn", columns="field", values="ground_truth", aggfunc="last")
+          .reset_index())
+
+wide.columns.name = None
+wide.to_csv("ground_truth_by_file.csv", index=False)   # optional: save
