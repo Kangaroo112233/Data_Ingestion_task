@@ -17,3 +17,8 @@ df9.loc[mask, "ground_truth"] = (
        .astype(float)
        .map(lambda v: f"-${abs(v):,.2f}" if v < 0 else f"${v:,.2f}")
 )
+# Create accuracy_2 column: 1 if predicted_value == ground_truth, else 0
+df9["accuracy_2"] = (
+    df9["predicted_value"].astype(str).str.strip() ==
+    df9["ground_truth"].astype(str).str.strip()
+).astype(int)
